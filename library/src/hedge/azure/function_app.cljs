@@ -22,6 +22,6 @@
   ([handler codec]
    (fn [&[context :as params]]
      (try
-       (.done context (serialize codec
+       (.done context nil (serialize codec
                                  (apply handler (map (partial deserialize codec) params))))
        (catch js/Object e (.done context e nil))))))

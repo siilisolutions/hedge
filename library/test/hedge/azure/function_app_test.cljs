@@ -7,13 +7,13 @@
   (testing "azure-function-wrapper"
     (testing "should call context done with the result given by the handler"
       (async done
-        ((azure-function-wrapper (constantly "result")) #js {:done #(do (is (= "result" %1)) (done))})))
+        ((azure-function-wrapper (constantly "result")) #js {:done #(do (is (= "result" %2)) (done))})))
     (testing "should serialize the object returned by handler to camel case js object"
       (async done
              ((azure-function-wrapper (constantly {:test-data "Data"}))
               #js {:done #(do
                             (is
-                             (= (.-testData %1) "Data"))
+                             (= (.-testData %2) "Data"))
                             (done))})))
     (testing "should deserialize the arguments to maps with dashed keywords"
       (async done
