@@ -1,5 +1,6 @@
 (ns hedge.azure.function-app-test
   (:require [cljs.test :refer-macros [deftest is testing async]]
+            [cljs.core.async :refer [chan put!]]
             [hedge.azure.function-app :refer [azure-function-wrapper] :refer-macros [azure-function]]))
 
 
@@ -19,7 +20,14 @@
       (async done
              ((azure-function-wrapper (fn [& args] (is (= [{:done done} {:test-data {:some-field "Data"}}] args))))
               #js {:done done}
-              #js {"testData" #js {"someField" "Data"}})))))
+              #js {"testData" #js {"someField" "Data"}})))
+    (testing "handler returning a core async ReadPort"
+      (async done
+        (let [results (chan)
+              azure-fn (azure-function-wrapper (constantly results))]
+          (testing "should complete on receival of a message"
+            (azure-fn #js {:done #(do (is (= "result" %2)) (done))})
+            (put! results "result")))))))
 
 
 (deftest azure-function-test

@@ -6,6 +6,8 @@
                   [org.clojure/clojurescript "1.9.293"]
                   [crisptrutski/boot-cljs-test "0.3.0" :scope "test"]
                   [camel-snake-kebab "0.4.0"]
+                  [org.clojure/core.async "0.2.395"]
+
                   [adzerk/bootlaces "0.1.13" :scope "test"]
                   ])
 

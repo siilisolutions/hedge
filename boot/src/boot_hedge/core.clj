@@ -60,7 +60,7 @@
     (spit  {:require [fns]}))
   dir)
 
-(defn function-json [{:keys [path authorization]}]
+(defn function-json [path authorization]
   {:bindings
    [{:authLevel (name authorization),
      :type "httpTrigger",
@@ -78,7 +78,7 @@
         func-dir (clojure.java.io/file tgt cloud-name)]
   (doto (clojure.java.io/file func-dir "function.json")
     clojure.java.io/make-parents
-    (serialize-json (function-json path)))
+    (serialize-json (function-json path authorization)))
   (-> fs (c/add-resource tgt) c/commit!)))
 
 

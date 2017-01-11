@@ -1,6 +1,9 @@
 (ns hedge.azure.function-app
+  (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [camel-snake-kebab.core :refer [->camelCaseString ->kebab-case-keyword]]
-            [camel-snake-kebab.extras :refer [transform-keys]]))
+            [camel-snake-kebab.extras :refer [transform-keys]]
+            [cljs.core.async :refer [<!]]
+            [cljs.core.async.impl.protocols :refer [ReadPort]]))
 
 
 (defprotocol Codec
@@ -22,6 +25,9 @@
   ([handler codec]
    (fn [&[context :as params]]
      (try
-       (.done context nil (serialize codec
-                                 (apply handler (map (partial deserialize codec) params))))
+       (let [ok #(.done context nil (serialize codec %1))
+             result (apply handler (map (partial deserialize codec) params))]
+         (cond
+          (satisfies? ReadPort result) (go (ok (<! result)))
+          :else (ok result)))
        (catch js/Object e (.done context e nil))))))
