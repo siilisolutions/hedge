@@ -1,7 +1,7 @@
-/target
-/lib
-/classes
-/checkouts
+target
+lib
+classes
+checkouts
 pom.xml
 *.jar
 *.class
@@ -9,3 +9,7 @@ pom.xml
 .lein-failures
 .lein-plugins
 .lein-repl-history
+.nrepl-history
+.nrepl-port
+*.swp
+.cljs_node_repl/
