@@ -19,13 +19,20 @@
                                      js->clj
                                      (transform-keys ->kebab-case-keyword))))
 
+
+
+(defn serialize-response [codec resp]
+  (cond
+   (and (map? resp) (:headers resp)) (aset (serialize codec resp) "headers" (clj->js (:headers resp)))
+   :default                          (serialize codec resp)))
+
 (defn azure-function-wrapper
   ([handler]
    (azure-function-wrapper handler nil))
   ([handler codec]
    (fn [&[context :as params]]
      (try
-       (let [ok #(.done context nil (serialize codec %1))
+       (let [ok #(.done context nil (serialize-response codec %1))
              result (apply handler (map (partial deserialize codec) params))]
          (cond
           (satisfies? ReadPort result) (go (ok (<! result)))
