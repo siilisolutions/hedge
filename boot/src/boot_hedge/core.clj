@@ -38,6 +38,16 @@
         (recur)
         func-ns))))
 
+(defn dashed-alphanumeric [s]
+  (str/replace s #"[^A-Za-z0-9\-]" "_"))
+
+(defn generate-cloud-name [handler]
+  ; hedge-test.core/hello => hedge-test_core__hello
+  (str 
+    (dashed-alphanumeric (namespace handler))
+    "__"
+    (dashed-alphanumeric (name handler))))
+
 (defn generate-source [fs {:keys [handler]}]
   (let [handler-ns (symbol (namespace handler))
         handler-func (symbol (name handler))
@@ -52,7 +62,7 @@
     (clojure.pprint/pprint (slurp ff))
     {:fs (-> fs (c/add-source tgt) c/commit!)
      :func func-ns
-     :cloud-name  (last (str/split (name handler-ns) #"\."))}))
+     :cloud-name (generate-cloud-name handler)}))
 
 (defn generate-cljs-edn [dir fns]
   (doto (clojure.java.io/file dir "index.cljs.edn")
