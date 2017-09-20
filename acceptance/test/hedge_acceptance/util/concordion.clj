@@ -1,4 +1,4 @@
-(ns concordion
+(ns hedge-acceptance.util.concordion
   (:require [camel-snake-kebab.core :refer [->PascalCaseSymbol]]))
 
 
@@ -24,5 +24,5 @@
 
 (defmacro concordion-fixture [n & fs]
   (let [prefix (str (gensym "concordion") "-")]
-    `(do (concordion/gen-fixture-class ~prefix ~n ~fs)
-         ~@(concordion/gen-fixture-funcs prefix fs))))
+    `(do (hedge-acceptance.util.concordion/gen-fixture-class ~prefix ~n ~fs)
+         ~@(hedge-acceptance.util.concordion/gen-fixture-funcs prefix fs))))

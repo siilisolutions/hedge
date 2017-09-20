@@ -1,6 +1,6 @@
-(ns ring-azure
-  (:require [concordion :refer [concordion-fixture]]
-            [sample-codes :refer :all]))
+(ns hedge-acceptance.ring-azure
+  (:require [hedge-acceptance.util.concordion :refer [concordion-fixture]]
+            [hedge-acceptance.util.sample-codes :refer :all]))
 
 
 (concordion-fixture basic-ring-handler-azure

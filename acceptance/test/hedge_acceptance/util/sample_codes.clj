@@ -1,4 +1,4 @@
-(ns sample-codes
+(ns hedge-acceptance.util.sample-codes
   (:require [zprint.core :as zp]
             [backtick :refer [quote-fn]]))
 
