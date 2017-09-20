@@ -4,9 +4,6 @@
 
 
 (concordion-fixture basic-ring-handler-azure
-                    (testi [koodii]
-                           (println koodii)
-                           "HIIOHOI")
                     (handlerNsName [] (str handler-ns-name))
                     (simpleBoot [] (code-print simple-boot-conf))
                     (basicHandlerNS [] (code-print basic-handler))
