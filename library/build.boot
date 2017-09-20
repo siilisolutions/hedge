@@ -3,11 +3,10 @@
   :resource-paths  #{"resources"}
   :dependencies '[[adzerk/boot-cljs "1.7.228-2" :scope "test"]
                   [speclj "3.3.2" :scope "test"]
-                  [org.clojure/clojurescript "1.9.293"]
-                  [crisptrutski/boot-cljs-test "0.3.0" :scope "test"]
+                  [org.clojure/clojurescript "1.9.908"]
+                  [crisptrutski/boot-cljs-test "0.3.4" :scope "test"]
                   [camel-snake-kebab "0.4.0"]
-                  [org.clojure/core.async "0.2.395"]
-
+                  [org.clojure/core.async "0.3.443"]
                   [adzerk/bootlaces "0.1.13" :scope "test"]
                   ])
 
@@ -16,12 +15,9 @@
   '[crisptrutski.boot-cljs-test :refer [test-cljs]]
   '[adzerk.bootlaces :refer :all])
 
-
-
 (def +version+ "0.0.1-SNAPSHOT")
 
 (bootlaces! +version+)
-
 
 (task-options!
  pom {:project 'siili/hedge
@@ -30,8 +26,6 @@
       :url         "https://github.com/siilisolutions/hedge"
       :scm         {:url "https://github.com/siilisolutions/hedge.git" :dir "../"}
       :license     {"EPL" "http://www.eclipse.org/legal/epl-v10.html"}})
-
-
 
 (deftask dev
   "Watch/compile files in development"
@@ -53,13 +47,11 @@
 
     (target)))
 
-
 (deftask testing []
   (set-env! :source-paths #(conj % "test"))
   identity)
 
 (ns-unmap 'boot.user 'test)
-
 
 (deftask test []
   (comp (testing)
@@ -71,9 +63,7 @@
         (watch)
         (test-cljs :js-env :node)))
 
-
 (deftask cljs-repl
   "start a node based repl"
   []
   (repl :eval '(do (require 'cljs.repl) (require 'cljs.repl.node) (cljs.repl/repl (cljs.repl.node/repl-env)))))
-
