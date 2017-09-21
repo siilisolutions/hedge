@@ -1,16 +1,17 @@
-(set-env! :resource-paths #{"src"}
-          :dependencies '[[org.clojure/clojure "1.7.0"]
-                          [boot/core "2.6.0" :scope "provided"]
-                          [cheshire "5.6.3"]
-                          [adzerk/bootlaces "0.1.13" :scope "test"]])
+(set-env! :source-paths #{"test"}
+          :resource-paths #{"src"}
+          :dependencies '[[org.clojure/clojure "1.8.0"]
+                          [boot/core "2.7.2" :scope "provided"]
+                          [cheshire "5.8.0"]
+                          [adzerk/bootlaces "0.1.13" :scope "test"]
+                          [adzerk/boot-test "1.2.0" :scope "test"]])
 
 (require '[adzerk.bootlaces :refer :all])
-
+(require '[adzerk.boot-test :refer :all])
 
 (def +version+ "0.0.1-SNAPSHOT")
 
 (bootlaces! +version+)
-
 
 (task-options!
  pom {:project 'siili/boot-hedge
