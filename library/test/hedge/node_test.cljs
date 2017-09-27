@@ -1,5 +1,6 @@
 (ns hedge.node-test
   (:require [cljs.test :refer-macros [deftest is testing run-tests]]
+            [goog.object :as gobj]
             [hedge.node :refer-macros [export cli-main node-module]]))
 
 
@@ -7,7 +8,7 @@
   (testing "module export"
     (testing "should set module.export"
       (export :exports)
-      (is (= (aget js/module "exports")
+      (is (= (gobj/get js/module "exports")
              :exports)))))
 
 
@@ -25,5 +26,5 @@
       (is (= (*main-cli-fn*)
              nil)))
     (testing "should export the given object"
-      (is (= (aget js/module "exports")
+      (is (= (gobj/get js/module "exports")
              :module-exports)))))
