@@ -3,6 +3,8 @@
           :dependencies '[[org.clojure/clojure "1.8.0"]
                           [boot/core "2.7.2" :scope "provided"]
                           [cheshire "5.8.0"]
+                          [com.microsoft.azure/azure "1.2.1"]
+                          [com.velisco/clj-ftp "0.3.9"]
                           [adzerk/bootlaces "0.1.13" :scope "test"]
                           [adzerk/boot-test "1.2.0" :scope "test"]])
 
