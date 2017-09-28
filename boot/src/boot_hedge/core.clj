@@ -120,7 +120,6 @@
    r rg-name RGN str "the resource group name"]
   (c/with-pass-thru [fs]
     (let [pprofile (publishing-profile rg-name app-name)
-          _  (prn pprofile)
           ftp-profile (:ftp pprofile)]
       (doseq [{:keys [dir path] :as fi} (vals (:tree (c/output-fileset fs)))
               :let [f (.toFile (.resolve (.toPath dir) path))]]
