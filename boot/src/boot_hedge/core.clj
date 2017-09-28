@@ -120,10 +120,16 @@
   (util/info (prn-str (publishing-profile rg-name app-name))))
 
 (c/deftask azure-deploy
-  [d directory DIR str "directory containing the app"
-   a app-name APP str "the app name"
+  [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
-  (deploy-dir directory rg-name app-name))
+  (let [ftp-profile (:ftp (publishing-profile rg-name app-name))]
+    (c/with-pass-thru [fs]
+      (doseq [{:keys [dir path] :as fi} (vals (:tree (c/output-fileset fs)))
+              :let [f (.toFile (.resolve (.toPath dir) path))]]
+        (util/info "uploading %s...\n" path dir)
+        (with-open [in (input-stream f)]
+          (upload-file ftp-profile (str path) in))))))
+
 
 
 (c/deftask hedge-azure
