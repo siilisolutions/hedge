@@ -3,6 +3,8 @@
   (:require
    [boot.core          :as c]
    [boot.util          :as util]
+   [boot.task.built-in :refer [sift]]
+   [adzerk.boot-cljs :refer [cljs]] 
    [clojure.string :refer [split]]
    [clojure.java.io :refer [file input-stream]]
    [boot-hedge.function-app :refer [read-conf generate-files]])
@@ -29,7 +31,7 @@
   ([cred-file]
    (->
     (Azure/configure)
-    (.withLogLevel LogLevel/BASIC)
+    (.withLogLevel LogLevel/NONE)
     (.authenticate cred-file)
     (.withDefaultSubscription))))
 
@@ -96,23 +98,17 @@
     (.disconnect ftp-client)))
 
 (defn publishing-profile [resource-group function]
-  (let [pbo (-> (azure)
+  (let [faps (-> (azure)
                 .appServices
-                .functionApps
-                (.getByResourceGroup resource-group function)
-                .getPublishingProfile)]
+                .functionApps)
+        pbo   (-> faps
+                  (.getByResourceGroup resource-group function)
+                  .getPublishingProfile)]
+   
     {:ftp {:url (.ftpUrl pbo)
            :username (.ftpUsername pbo)
-           :password (.ftpPassword pbo)}}
-    ))
+           :password (.ftpPassword pbo)}}))
 
-(defn deploy-dir [dir resource-group function]
-  (let [fdir (file dir)
-        base (.toPath fdir)
-        ftp-profile (:ftp (publishing-profile resource-group function))]
-    (doseq [f (file-seq fdir) :when (not (.isDirectory f)) :let [path (.relativize base (.toPath f))]]
-      (with-open [in (input-stream f)]
-        (upload-file ftp-profile (str path) in)))))
 
 (c/deftask azure-publish-profile
   [a app-name APP str "the app name"
@@ -122,7 +118,9 @@
 (c/deftask azure-deploy
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
-  (let [ftp-profile (:ftp (publishing-profile rg-name app-name))]
+  (let [pprofile (publishing-profile rg-name app-name)
+        _  (prn pprofile)
+        ftp-profile (:ftp pprofile)]
     (c/with-pass-thru [fs]
       (doseq [{:keys [dir path] :as fi} (vals (:tree (c/output-fileset fs)))
               :let [f (.toFile (.resolve (.toPath dir) path))]]
@@ -133,5 +131,11 @@
 
 
 (c/deftask hedge-azure
-  []
-  (util/info "building an azure function app"))
+  [a app-name APP str "the app name"
+   r rg-name RGN str "the resource group name"]
+  (comp
+   (function-app)
+   (cljs :optimizations :advanced
+         :compiler-options {:target :nodejs
+                            :externs ["documentdb.ext.js"]})
+   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)))

@@ -2,6 +2,7 @@
           :resource-paths #{"src"}
           :dependencies '[[org.clojure/clojure "1.8.0"]
                           [boot/core "2.7.2" :scope "provided"]
+                          [adzerk/boot-cljs "2.1.4"]
                           [cheshire "5.8.0"]
                           [com.microsoft.azure/azure "1.2.1"]
                           [com.velisco/clj-ftp "0.3.9"]
