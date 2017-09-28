@@ -22,10 +22,9 @@
 
 (defn serialize-response [codec resp]
   (let [g (serialize codec resp)]
-    (do
-      (cond-> g
+    (cond-> g
         (and (map? resp) (:headers resp)) (gobj/set "headers" (clj->js (:headers resp))))
-      g)))
+    g))
 
 (defn azure-function-wrapper
   ([handler]
