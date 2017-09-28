@@ -118,10 +118,10 @@
 (c/deftask azure-deploy
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
-  (let [pprofile (publishing-profile rg-name app-name)
-        _  (prn pprofile)
-        ftp-profile (:ftp pprofile)]
-    (c/with-pass-thru [fs]
+  (c/with-pass-thru [fs]
+    (let [pprofile (publishing-profile rg-name app-name)
+          _  (prn pprofile)
+          ftp-profile (:ftp pprofile)]
       (doseq [{:keys [dir path] :as fi} (vals (:tree (c/output-fileset fs)))
               :let [f (.toFile (.resolve (.toPath dir) path))]]
         (util/info "uploading %s...\n" path dir)
@@ -138,4 +138,5 @@
    (cljs :optimizations :advanced
          :compiler-options {:target :nodejs
                             :externs ["documentdb.ext.js"]})
-   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)))
+   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+   (azure-deploy :app-name app-name :rg-name rg-name)))
