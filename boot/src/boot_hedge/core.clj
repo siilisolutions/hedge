@@ -65,7 +65,6 @@
     result))
 
 (defn upload-file [{:keys [url username password] :as ftp} file-path file-stream]
-  (prn ftp)
   (let [ftp-client (FTPClient.)
         ftp-url-segments (split url #"/" 2)
         server (first ftp-url-segments)
