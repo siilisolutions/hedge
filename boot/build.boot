@@ -9,7 +9,7 @@
 (require '[adzerk.bootlaces :refer :all])
 (require '[adzerk.boot-test :refer :all])
 
-(def +version+ "0.0.1-SNAPSHOT")
+(def +version+ "0.0.1")
 
 (bootlaces! +version+)
 
