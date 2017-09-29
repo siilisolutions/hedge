@@ -11,6 +11,12 @@ env:
   - SUB_PROJECT=acceptance
 jdk:
   - oraclejdk8
+cache:
+  directories:
+  - $HOME/.m2
+  - $HOME/.boot/cache/bin
+  - $HOME/.boot/cache/lib
+  - $HOME/bin
 script:
   - cd $SUB_PROJECT
   - boot test
