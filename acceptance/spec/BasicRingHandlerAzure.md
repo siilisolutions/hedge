@@ -1,4 +1,4 @@
-# Basic Ring Handler in Azure
+# [Basic Ring Handler in Azure](- "basic-handler c:status=ExpectedToFail")
 
 First a project needs to include hedge and it's built tools for boot as well as cljs compiler.
 

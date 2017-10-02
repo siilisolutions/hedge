@@ -9,4 +9,4 @@
                     (basicHandlerNS [] (code-print basic-handler))
                     (basicHelloConf [] (code-print hello-conf))
                     (deploy [bc] (println bc))
-                    (getresource [url] "\"hello\""))  ;; obviously this is wrong but I need to have the test pass at least once for Travis
+                    (getresource [url] nil))
