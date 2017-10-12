@@ -1,5 +1,7 @@
 # Hedge · [![Join the chat at https://gitter.im/siilisolutions/hedge](https://badges.gitter.im/siilisolutions/hedge.svg)](https://gitter.im/siilisolutions/hedge?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/siilisolutions/hedge.svg?branch=master)](https://travis-ci.org/siilisolutions/hedge)
 
+![Hedge](docs/images/hedgecube.png "Hedge")
+
 Hedge is a platform agnostic ClojureScript framework for deploying ring compatible handlers to various environments with focus on serverless deployments.
 
 ## Repository Contents
@@ -15,8 +17,6 @@ Hedge is a platform agnostic ClojureScript framework for deploying ring compatib
 ## Supported Platforms
 
 ### [Azure Functions](https://azure.microsoft.com/en-us/services/functions/)
-
-
 
 ## License
 
