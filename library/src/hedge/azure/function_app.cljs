@@ -63,8 +63,8 @@
    (fn [context req]
      (try
        (let [ok     (ring->azure context codec)
-             result (handler (azure->ring req))
-             logfn (.-log context)]
+             logfn (.-log context)
+             result (handler (into (azure->ring req) {:log logfn}))]
          
          (.log context (str "request: " (js->clj req)))
          (.log context (str "result: " result))
