@@ -51,10 +51,13 @@
      :body            (get r "body")  ; TODO: should use codec or smth probably to handle request body type
   }))
 
-(defn ring->azure [context codec]
-  (fn [raw-resp] 
-    (.done context nil (clj->js raw-resp))))
 
+(defn ring->azure [context codec]
+  (fn [raw-resp]
+    (.log context (str "result: " raw-resp))
+    (if (string? raw-resp)
+      (.done context nil (clj->js {:body raw-resp}))
+      (.done context nil (clj->js raw-resp)))))
 
 (defn azure-function-wrapper
   ([handler]
@@ -65,11 +68,11 @@
        (let [ok     (ring->azure context codec)
              logfn (.-log context)
              result (handler (into (azure->ring req) {:log logfn}))]
-         
-         (.log context (str "request: " (js->clj req)))
-         (.log context (str "result: " result))
-         (cond
-           (satisfies? ReadPort result) (go (ok (<! result)))
-           (string? result)             (ok {:body result})
-           :else                        (ok result)))
+
+          (.log context (str "request: " (js->clj req)))
+          (cond
+            (satisfies? ReadPort result) (do (.log context "Result is channel, content pending...")
+                                           (go (ok (<! result))))
+            (string? result)             (ok {:body result})
+            :else                        (ok result)))
        (catch js/Object e (.done context e nil))))))
