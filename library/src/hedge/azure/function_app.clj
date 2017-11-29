@@ -1,7 +1,7 @@
 (ns hedge.azure.function-app
-  (:require [hedge.node :refer [node-module]]))
+  (:require [hedge.node :refer [node-module1]]))
 
 
 
 (defmacro azure-function [f]
-  `(node-module (hedge.azure.function-app/azure-function-wrapper ~f)))
+  `(node-module1 (hedge.azure.function-app/azure-function-wrapper ~f)))

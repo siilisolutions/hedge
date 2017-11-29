@@ -49,6 +49,7 @@
     (dashed-alphanumeric (name handler))))
 
 (defn generate-source [fs {:keys [handler]}]
+  "Generates multiple source files with rules read from hedge.edn"
   (let [handler-ns (symbol (namespace handler))
         handler-func (symbol (name handler))
         func-ns (hedge-ns fs handler-ns)
@@ -58,6 +59,7 @@
       clojure.java.io/make-parents
       (spit `(~'ns ~func-ns (:require [hedge.aws.function-app :refer-macros [~'azure-function]]
                                      [~handler-ns :as ~'handler])))
+      (spit `(~'enable-console-print!) :append true)
       (spit `(~'azure-function ~(symbol (str 'handler "/" handler-func))) :append true))
     (clojure.pprint/pprint (slurp ff))
     {:fs (-> fs (c/add-source tgt) c/commit!)

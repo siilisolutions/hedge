@@ -34,24 +34,30 @@
     (if (some? header)
       (clean-fn header))))
 
+(defn map->querystring [data]
+  (let [querystring (cljs.nodejs/require "querystring")]
+    (.stringify querystring data)))
+
 (defn azure->ring 
   [req]
   (let [r       (js->clj req)
-        headers (get r "headers")]
-    {:server-port    -1
+        query-map (goog.object/get req "queryStringParameters")
+        headers (get r "headers")
+        context (get r "requestContext")]
+    (println "raw req" r)
+    {:server-port     (-> (get headers "X-Forwarded-Port") js/parseInt)
      :server-name     (get headers "Host")
-     :remote-addr     (dig headers "x-forwarded-for" #(-> % (str/split #"," 2) first))
-     :uri             (get headers "x-original-url")
-     :query-string    (-> (get r "originalUrl") (str/split #"\?" 2) second)
-     :scheme          (-> (get r "originalUrl") (str/split #":" 2) first keyword)
-     :request-method  (-> (get r "method") str/lower-case keyword)
+     :remote-addr     (dig headers "X-Forwarded-For" #(-> % (str/split #"," 2) first))
+     :uri             (get context "path")
+     :query-string    (map->querystring query-map)
+     :scheme          (-> (get headers "X-Forwarded-Proto") keyword)
+     :request-method  (-> (get context "httpMethod") str/lower-case keyword)
      :protocol        "HTTP/1.1"      ; TODO: figure out if this can ever be anything else
      :ssl-client-cert nil             ; TODO: we have the client cert string but not as Java type...
      :headers         headers
-     :body            (get r "body")  ; TODO: should use codec or smth probably to handle request body type
-  }))
+     :body            (get r "body")}))  ; TODO: should use codec or smth probably to handle request body type
 
-
+; FIXME: change for AWS API lambda proxy
 (defn ring->azure [callback codec]
   (fn [raw-resp]
     (println (str "result: " raw-resp))
@@ -67,9 +73,9 @@
      (try
        (let [ok     (ring->azure callback codec)
              logfn (.-log context)
-             result (handler (into (azure->ring req) {:log logfn}))]
+             result (handler (azure->ring event))]
 
-          (println (str "request: " (js->clj req)))
+          (println (str "raw request: " (js->clj event)))
           (cond
             (satisfies? ReadPort result) (do (println "Result is channel, content pending...")
                                            (go (ok (<! result))))
