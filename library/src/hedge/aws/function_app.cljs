@@ -8,7 +8,6 @@
             [clojure.string :as str]
             [clojure.walk :as w]))
 
-
 (defprotocol Codec
   (serialize [this data])
   (deserialize [this message]))
@@ -38,7 +37,7 @@
   (let [querystring (cljs.nodejs/require "querystring")]
     (.stringify querystring data)))
 
-(defn azure->ring 
+(defn lambda->ring
   [req]
   (let [r       (js->clj req)
         query-map (goog.object/get req "queryStringParameters")
@@ -57,13 +56,28 @@
      :headers         headers
      :body            (get r "body")}))  ; TODO: should use codec or smth probably to handle request body type
 
-; FIXME: change for AWS API lambda proxy
-(defn ring->azure [callback codec]
+; FIXME: finish, use protocols, support stream and buffer?
+(defn- ringbody->awsbody
+  "Convert ring body to AWS body"
+  [body]
+  [false body])
+
+(defn ring->lambda [callback codec]
   (fn [raw-resp]
     (println (str "result: " raw-resp))
-    (if (string? raw-resp)
-      (callback nil (clj->js {:body raw-resp}))
-      (callback nil (clj->js raw-resp)))))
+    (let [response
+          (if (string? raw-resp)
+            {:statusCode 200 :body raw-resp}
+            (let [body (ringbody->awsbody (get raw-resp :body))
+                  headers (get raw-resp :headers {})
+                  status (get raw-resp :status 200)
+                  isBase64Encoded (get raw-resp :base64encoded false)]
+              {:statusCode status
+               :headers headers
+               :body body
+               :isBase64Encoded isBase64Encoded}))]
+      (println (str "final result: " response))
+      (callback nil (clj->js response)))))
 
 (defn azure-function-wrapper
   ([handler]
@@ -71,14 +85,10 @@
   ([handler codec]
    (fn [event context callback]
      (try
-       (let [ok     (ring->azure callback codec)
-             logfn (.-log context)
-             result (handler (azure->ring event))]
-
-          (println (str "raw request: " (js->clj event)))
+       (let [ok     (ring->lambda callback codec)
+             result (handler (lambda->ring event))]
           (cond
             (satisfies? ReadPort result) (do (println "Result is channel, content pending...")
                                            (go (ok (<! result))))
-            (string? result)             (ok {:body result})
             :else                        (ok result)))
        (catch :default e (callback e nil))))))
