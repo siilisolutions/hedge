@@ -60,7 +60,7 @@
 (defn- ringbody->awsbody
   "Convert ring body to AWS body"
   [body]
-  [false body])
+  [false (.stringify js/JSON (clj->js body))])
 
 (defn ring->lambda [callback codec]
   (fn [raw-resp]
@@ -68,14 +68,13 @@
     (let [response
           (if (string? raw-resp)
             {:statusCode 200 :body raw-resp}
-            (let [body (ringbody->awsbody (get raw-resp :body))
+            (let [[base64 body] (ringbody->awsbody (get raw-resp :body))
                   headers (get raw-resp :headers {})
-                  status (get raw-resp :status 200)
-                  isBase64Encoded (get raw-resp :base64encoded false)]
+                  status (get raw-resp :status 200)]
               {:statusCode status
                :headers headers
                :body body
-               :isBase64Encoded isBase64Encoded}))]
+               :isBase64Encoded base64}))]
       (println (str "final result: " response))
       (callback nil (clj->js response)))))
 
