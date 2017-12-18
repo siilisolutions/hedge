@@ -1,0 +1,17 @@
+{
+  "name": "serverless-hedge-plugin",
+  "version": "0.0.1",
+  "description": "Plugin for Hedge",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bluebird": "^3.5.0",
+    "fs-extra": "^5.0.0",
+    "jsedn": "^0.4.1",
+    "lodash": "^4.17.4"
+  }
+}
