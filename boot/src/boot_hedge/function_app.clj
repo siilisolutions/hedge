@@ -106,6 +106,6 @@
     (generate-function-json path func)))
 
 (defn generate-files [{:keys [api]} fs]
-  (reduce generate-function fs api)
-
-  )
+  (if (= (c/get-env :function-to-build) :all)
+    (reduce generate-function fs api)
+    (reduce generate-function fs (select-keys api [(c/get-env :function-to-build)]))))

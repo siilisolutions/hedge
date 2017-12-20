@@ -28,8 +28,10 @@
 ; * rename task later if deployment target for different cloud types is resolved
 (c/deftask deploy-to-target
   "Build function app(s) and store output to target"
-  [O optimizations LEVEL kw "The optimization level."]
+  [O optimizations LEVEL kw "The optimization level."
+   f function FUNCTION str "Function to compile"]
+  (c/set-env! :function-to-build (or function :all))
   (comp
     (compile-function-app :optimizations (or optimizations :simple))
-    (sift :include #{#"\.edn" #"\.cljs"} :invert true)
+    (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
     (target)))

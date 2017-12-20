@@ -142,10 +142,12 @@
 ; * read :compiler-options from command line and merge with current config
 (c/deftask deploy-to-target
   "Build function app(s) and store output to target"
-  [O optimizations LEVEL kw "The optimization level."]
+  [O optimizations LEVEL kw "The optimization level."
+   f function FUNCTION str "Function to compile"]
+  (c/set-env! :function-to-build (or function :all))
   (comp
     (compile-function-app :optimizations (or optimizations :simple))
-    (sift :include #{#"\.edn" #"\.cljs"} :invert true)
+    (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
     (target)))
 
 ; FIXME: check env. variables for deployment
