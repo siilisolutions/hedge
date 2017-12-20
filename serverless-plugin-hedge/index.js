@@ -2,7 +2,7 @@
 
 const BbPromise = require('bluebird');
 const childProcess = require('child_process');
-const edn = require("jsedn");
+const edn = require('jsedn');
 const path = require('path');
 const fs = require('fs-extra');
 const _ = require('lodash');
@@ -40,17 +40,17 @@ class HedgePlugin {
   }
 
   restore() {
-    this.serverless.cli.log("Restoring ServicePath!");
+    this.serverless.cli.log('Restoring ServicePath!');
     fs.copySync(
       // if running package command:
       //   copy target/.serverless into .serverless
       //   directory has only zip files which contains all functions
       // other use cases: TODO!
       path.join(this.originalServicePath, buildFolder, serverlessFolder),
-      path.join(this.originalServicePath, serverlessFolder)
+      path.join(this.originalServicePath, serverlessFolder),
     );
     // restore path
-    this.serverless.config.servicePath = this.originalServicePath
+    this.serverless.config.servicePath = this.originalServicePath;
     // FIXME delete buildFolder/.serverless
   }
 
@@ -87,7 +87,7 @@ class HedgePlugin {
 
   createEdnFile() {
     this.serverless.cli.log('Creating EDN file for Hedge');
-    var output = edn.encode(this.convertFunctionsToEdn(this.serverless.service.functions));
+    const output = edn.encode(this.convertFunctionsToEdn(this.serverless.service.functions));
     fs.writeFileSync(path.resolve(path.join('resources', 'hedge.edn')), output);
   }
 
@@ -113,11 +113,11 @@ class HedgePlugin {
 
   setupFns() {
     this.serverless.cli.log('setupFns');
-    var functions = this.serverless.service.functions;
-    var options = this.options;
+    const functions = this.serverless.service.functions;
+    const options = this.options;
     _.forIn(functions, (value, key) => {
-      if (value["hedge"]) {
-        value["handler"] = `${this.generateCloudName(value["hedge"])}/index.handler`;
+      if (value.hedge) {
+        value.handler = `${this.generateCloudName(value.hedge)}/index.handler`;
       }
     });
   }
@@ -127,19 +127,19 @@ class HedgePlugin {
   }
 
   generateCloudName(s) {
-    var splitted = s.split('/');
-    return this.dashedAlphaNumeric(splitted[0]).replace('.', '_') +
-     '__' + this.dashedAlphaNumeric(splitted[1]);
+    const splitted = s.split('/');
+    return `${this.dashedAlphaNumeric(splitted[0]).replace('.', '_')
+    }__${this.dashedAlphaNumeric(splitted[1])}`;
   }
 
   convertFunctionsToEdn(fns) {
-    var result = new edn.Map();
+    const result = new edn.Map();
     _.forIn(fns, (value, key) => {
-      if (value["hedge"]) {
-        let inner = new edn.Map([edn.kw(':handler'), edn.sym(value["hedge"])]);
+      if (value.hedge) {
+        const inner = new edn.Map([edn.kw(':handler'), edn.sym(value.hedge)]);
         result.set(key, inner);
       }
-    })
+    });
     return new edn.Map([edn.kw(':api'), result]);
   }
 }
