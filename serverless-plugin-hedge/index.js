@@ -9,6 +9,9 @@ const _ = require('lodash');
 
 const buildFolder = 'target';
 const serverlessFolder = '.serverless';
+const bootCommand = process.env.HEDGE_BOOT_COMMAND ?
+                    process.env.HEDGE_BOOT_COMMAND :
+                    'boot';
 
 class HedgePlugin {
   constructor(serverless, options) {
@@ -26,17 +29,32 @@ class HedgePlugin {
       },
     };
 
-    this.hooks = {
-      // just build. Not really useful
-      'build:execute': this.build.bind(this),
+    if (this.serverless.service.provider.name === 'aws') {
+      this.hooks = {
+        // just build. Not really useful
+        'build:execute': this.build.bind(this),
 
-      // for package command
-      'before:package:createDeploymentArtifacts': this.package.bind(this),
-      'after:package:createDeploymentArtifacts': this.restore.bind(this),
+        // called by package and deploy
+        'before:package:createDeploymentArtifacts': this.package.bind(this),
+        'after:package:createDeploymentArtifacts': this.restore.bind(this),
 
-      'before:deploy:function:packageFunction': this.foo2.bind(this),
-      'after:deploy:function:packageFunction': this.restore.bind(this),
-    };
+        // called by deploy function
+        'before:deploy:function:packageFunction': this.deployFunction.bind(this),
+        'after:deploy:function:packageFunction': this.restore.bind(this),
+      };
+    } else if (this.serverless.service.provider.name === 'azure') {
+      this.hooks = {
+        // just build. Not really useful
+        'build:execute': this.build.bind(this),
+
+        // called by package and ???
+        'before:deploy:deploy': this.package.bind(this),
+        //'after:deploy:deploy': this.restore.bind(this), // FIXME: enable?
+
+      };
+    } else {
+      throw new Error("Unsupported provider. Please file a bug report or PR");
+    }
   }
 
   restore() {
@@ -51,10 +69,13 @@ class HedgePlugin {
     );
     // restore path
     this.serverless.config.servicePath = this.originalServicePath;
-    // FIXME delete buildFolder/.serverless
+    // FIXME: unset originalServicePath for azure
+
+    // FIXME: delete buildFolder/.serverless
+    // FIXME: clean output of copyExtras()
+    // FIXME: cleanup mus be done in some other function.
   }
 
-  // FIXME: do we need this? Boot/cljs finds node_modules from root
   copyExtras() {
     if (!fs.existsSync(path.resolve(path.join(buildFolder, 'node_modules')))) {
       fs.symlinkSync(path.resolve('node_modules'), path.resolve(path.join(buildFolder, 'node_modules')));
@@ -67,20 +88,26 @@ class HedgePlugin {
 
   build() {
     this.createEdnFile();
+    // this.changeServicePath();
     this.buildWithBoot();
   }
 
+  // package & deploy
   package() {
     this.serverless.cli.log('Running hedge-plugin package');
     this.createEdnFile();
     this.setupFns();
+    this.changeServicePath();
     this.buildWithBoot();
+    this.copyExtras();
   }
 
-  foo2() {
-    this.serverless.cli.log('foo2');
+  // FIXME? deploy function?
+  deployFunction() {
+    this.serverless.cli.log('Starting deployFunction()...');
     this.createEdnFile();
     this.setupFns();
+    this.changeServicePath();
     this.buildWithBoot();
     this.copyExtras();
   }
@@ -99,14 +126,16 @@ class HedgePlugin {
   }
 
   buildWithBoot() {
-    this.changeServicePath();
-
     if (this.options.function) {
-      // TODO: build only one function
+      const fn = this.options.function;
+      const fns = this.serverless.service.functions;
+      this.serverless.cli.log(`Building function ${this.options.function} with Hedge...`);
+      childProcess.execSync(`${bootCommand} deploy-to-target -f ${fns[fn]["hedge"]}`, { stdio: 'inherit' });
+      this.serverless.cli.log('Build done!');
     } else {
       // build all functions
       this.serverless.cli.log('Building with Hedge...');
-      childProcess.execSync('echo boot deploy-to-target', { stdio: 'inherit' });
+      childProcess.execSync(`${bootCommand} deploy-to-target`, { stdio: 'inherit' });
       this.serverless.cli.log('Build done!');
     }
   }
@@ -116,6 +145,10 @@ class HedgePlugin {
     const functions = this.serverless.service.functions;
     const options = this.options;
     _.forIn(functions, (value, key) => {
+      if (value.handler && !value.hedge) {
+        this.serverless.cli.log('WARNING: Functions with handler are not deployed');
+        this.serverless.cli.log(`         Ignored function name: ${key}`);
+      }
       if (value.hedge) {
         value.handler = `${this.generateCloudName(value.hedge)}/index.handler`;
       }
