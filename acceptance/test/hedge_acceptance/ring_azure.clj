@@ -44,10 +44,19 @@
 
 (defn cmd 
   [command]
-  (let [[command & args] (s/split (s/trim command)  #"\s+")]
-    (run-command command args {:dir          (str (tmp-dir)) 
-                               :redirect-err true
-                               :seq          true})))
+  (let [[command & args] (s/split (s/trim command)  #"\s+")
+        result (run-command command args {:dir          (str (tmp-dir)) 
+                                          :redirect-err true
+                                          :seq          true
+                                          :throw        false
+                                          :verbose      true})]
+    (when (not= 0 @(:exit-code result))
+      (do
+        (clojure.pprint/pprint result)
+        (println "Command failed with return value: " @(:exit-code result))
+        (println "Output of failed command:")
+        (doseq [x (:stdout result)] (println x))
+        (throw (Exception. "failure with return value"))))))
 
 (defn handler-file-name
   []
