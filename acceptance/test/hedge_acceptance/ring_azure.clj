@@ -52,7 +52,6 @@
                                           :verbose      true})]
     (when (not= 0 @(:exit-code result))
       (do
-        (clojure.pprint/pprint result)
         (println "Command failed with return value: " @(:exit-code result))
         (println "Output of failed command:")
         (doseq [x (:stdout result)] (println x))
