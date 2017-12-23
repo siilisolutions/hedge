@@ -21,7 +21,7 @@ cache:
   - $HOME/bin
 script:
   - cd $SUB_PROJECT
-  - if [[ "$SUB_PROJECT" == "acceptance" ]]; then boot test; else boot test build-jar; fi
+  - if [[ "$SUB_PROJECT" == "acceptance" ]]; then echo ; else boot test build-jar; fi
 notifications:
   email:
     on_success: never
