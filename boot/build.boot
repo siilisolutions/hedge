@@ -12,7 +12,7 @@
 (require '[adzerk.bootlaces :refer :all])
 (require '[adzerk.boot-test :refer :all])
 
-(def +version+ "0.0.2-SNAPSHOT")
+(def +version+ "0.0.2")
 
 (bootlaces! +version+)
 
@@ -23,7 +23,3 @@
       :url         "https://github.com/siilisolutions/hedge"
       :scm         {:url "https://github.com/siilisolutions/hedge.git" :dir "../"}
       :license     {"EPL" "http://www.eclipse.org/legal/epl-v10.html"}})
-
-
-
-

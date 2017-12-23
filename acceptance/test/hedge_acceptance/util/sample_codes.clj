@@ -9,8 +9,8 @@
             (set-env!
              :source-paths #{"src"}
              :resource-paths  #{"resources"}
-             :dependencies '[[siili/boot-hedge "0.0.2-SNAPSHOT" :scope "test"]
-                             [siili/hedge "0.0.2-SNAPSHOT"]])
+             :dependencies '[[siili/boot-hedge "0.0.2" :scope "test"]
+                             [siili/hedge "0.0.2"]])
 
             (require
             '[boot-hedge.core :refer :all]))
