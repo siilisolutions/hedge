@@ -27,5 +27,4 @@ notifications:
     on_success: never
     on_failure: always
 after_failure:
-  - if [[ "$SUB_PROJECT" == "acceptance" ]]; then w3m -dump $(find ~/.boot/ -name BasicRingHandlerAzure.html) ; fi
-  
+  - if [[ "$SUB_PROJECT" == "acceptance" ]]; then w3m -dump $(find ~/.boot/ -name BasicRingHandlerAzure.html) ; rm -f $(find ~/.boot/ -name BasicRingHandlerAzure.html) ; fi
