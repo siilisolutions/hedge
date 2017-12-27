@@ -1,15 +1,16 @@
 sudo: false
-language: java
-script: boot run-tests
+language: clojure
+before_install:
+  - openssl aes-256-cbc -K $encrypted_f09d814a19d5_key -iv $encrypted_f09d814a19d5_iv -in secrets.enc -out secrets -d
 install:
   - mkdir -p ~/bin
   - export PATH=~/bin:$PATH
-  # Could use `latest` tag instead of version number
   - curl -L https://github.com/boot-clj/boot-bin/releases/download/2.7.2/boot.sh -o ~/bin/boot
   - chmod +x ~/bin/boot
 env:
-  matrix:
-    - BOOT_CLOJURE_VERSION=1.8.0
+  - SUB_PROJECT=library
+  - SUB_PROJECT=boot
+  - SUB_PROJECT=acceptance
 jdk:
   - oraclejdk8
 cache:
@@ -18,4 +19,12 @@ cache:
   - $HOME/.boot/cache/bin
   - $HOME/.boot/cache/lib
   - $HOME/bin
-
+script:
+  - cd $SUB_PROJECT
+  - if [[ "$SUB_PROJECT" == "acceptance" ]]; then echo ; else boot test build-jar; fi
+notifications:
+  email:
+    on_success: never
+    on_failure: always
+after_failure:
+  - if [[ "$SUB_PROJECT" == "acceptance" ]]; then w3m -dump $(find ~/.boot/ -name BasicRingHandlerAzure.html) ; rm -f $(find ~/.boot/ -name BasicRingHandlerAzure.html) ; fi

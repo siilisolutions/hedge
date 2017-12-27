@@ -5,16 +5,17 @@
 (defmacro code-block [n & body]
   `(def ~n ~(quote-fn identity body)))
 
-
 (code-block simple-boot-conf
             (set-env!
              :source-paths #{"src"}
              :resource-paths  #{"resources"}
-             :dependencies '[[adzerk/boot-cljs "1.7.228-2" :scope "test"]
-                             [siili/boot-hedge "0.0.1-SNAPSHOT" :scope "test"]
-                             [siili/hedge "0.0.1-SNAPSHOT"]]))
+             :dependencies '[[siili/boot-hedge "0.0.2" :scope "test"]
+                             [siili/hedge "0.0.2"]])
 
-(def handler-ns-name 'hedge-handler)
+            (require
+            '[boot-hedge.core :refer :all]))
+
+(def handler-ns-name 'simple-hedge-handler.core)
 
 (def handler-func-name 'hello)
 
@@ -23,11 +24,11 @@
              (defn ~handler-func-name [req]
                {:status  200
                 :headers {"Content-Type" "text/html"}
-                :body    "hello HTTP!"}))
+                :body    "Hello!"}))
 
 (code-block hello-conf
-            {:api {"hello" {:handler ~(symbol (str handler-ns-name) (str handler-func-name))}}})
-
+            {:api {"hello" {:handler ~(symbol (str handler-ns-name) (str handler-func-name))
+                            :authorization :anonymous}}})
 
 (defn code-print [ss]
   (with-out-str
@@ -35,3 +36,8 @@
     (doseq [s ss]
       (zp/zprint s)
       (println))))
+
+(def boot-props
+"BOOT_CLOJURE_NAME=org.clojure/clojure
+BOOT_CLOJURE_VERSION=1.8.0
+BOOT_VERSION=2.7.2")

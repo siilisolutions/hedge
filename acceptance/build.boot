@@ -9,7 +9,9 @@
                   [radicalzephyr/cljunit "0.2.0"]
                   [zprint "0.4.2"]
                   [clojure-future-spec "1.9.0-alpha17"]
-                  [backtick "0.3.4"]])
+                  [backtick "0.3.4"]
+                  [me.raynes/conch "0.8.0"]
+                  [http-kit "2.2.0"]])
 
 
 (require '[radicalzephyr.boot-junit :refer (junit)])
