@@ -29,27 +29,32 @@ class HedgePlugin {
       },
     };
 
+    // TODO: add default exclude
+
     if (this.serverless.service.provider.name === 'aws') {
       this.hooks = {
         // just build. Not really useful
         'build:execute': this.build.bind(this),
 
-        // called by package and deploy
+        // called by `package` and `deploy`(call package internally) commands
         'before:package:createDeploymentArtifacts': this.package.bind(this),
-        'after:package:createDeploymentArtifacts': this.restore.bind(this),
+        'after:package:createDeploymentArtifacts': this.cleanUp.bind(this),
 
-        // called by deploy function
+        // called by `deploy function` command
         'before:deploy:function:packageFunction': this.deployFunction.bind(this),
-        'after:deploy:function:packageFunction': this.restore.bind(this),
+        'after:deploy:function:packageFunction': this.cleanUp.bind(this),
       };
     } else if (this.serverless.service.provider.name === 'azure') {
       this.hooks = {
-        // just build. Not really useful
         'build:execute': this.build.bind(this),
 
-        // called by package and ???
+        // called by deploy
         'before:deploy:deploy': this.package.bind(this),
-        //'after:deploy:deploy': this.restore.bind(this), // FIXME: enable?
+        'after:deploy:deploy': this.cleanUp.bind(this),
+
+        // called by deploy function
+        'before:deploy:function:deploy': this.package.bind(this),
+        'after:deploy:function:deploy': this.cleanUp.bind(this),
 
       };
     } else {
@@ -57,38 +62,12 @@ class HedgePlugin {
     }
   }
 
-  restore() {
-    this.serverless.cli.log('Restoring ServicePath!');
-    fs.copySync(
-      // if running package command:
-      //   copy target/.serverless into .serverless
-      //   directory has only zip files which contains all functions
-      // other use cases: TODO!
-      path.join(this.originalServicePath, buildFolder, serverlessFolder),
-      path.join(this.originalServicePath, serverlessFolder),
-    );
-    // restore path
-    this.serverless.config.servicePath = this.originalServicePath;
-    // FIXME: unset originalServicePath for azure
+  cleanUp() {
 
-    // FIXME: delete buildFolder/.serverless
-    // FIXME: clean output of copyExtras()
-    // FIXME: cleanup mus be done in some other function.
-  }
-
-  copyExtras() {
-    if (!fs.existsSync(path.resolve(path.join(buildFolder, 'node_modules')))) {
-      fs.symlinkSync(path.resolve('node_modules'), path.resolve(path.join(buildFolder, 'node_modules')));
-    }
-
-    if (!fs.existsSync(path.resolve(path.join(buildFolder, 'package.json')))) {
-      fs.symlinkSync(path.resolve('package.json'), path.resolve(path.join(buildFolder, 'package.json')));
-    }
   }
 
   build() {
     this.createEdnFile();
-    // this.changeServicePath();
     this.buildWithBoot();
   }
 
@@ -97,32 +76,21 @@ class HedgePlugin {
     this.serverless.cli.log('Running hedge-plugin package');
     this.createEdnFile();
     this.setupFns();
-    this.changeServicePath();
     this.buildWithBoot();
-    this.copyExtras();
   }
 
-  // FIXME? deploy function?
   deployFunction() {
     this.serverless.cli.log('Starting deployFunction()...');
     this.createEdnFile();
     this.setupFns();
-    this.changeServicePath();
     this.buildWithBoot();
-    this.copyExtras();
   }
 
   createEdnFile() {
     this.serverless.cli.log('Creating EDN file for Hedge');
     const output = edn.encode(this.convertFunctionsToEdn(this.serverless.service.functions));
+    fs.ensureDirSync('resources');
     fs.writeFileSync(path.resolve(path.join('resources', 'hedge.edn')), output);
-  }
-
-  changeServicePath() {
-    if (!this.originalServicePath) {
-      this.originalServicePath = this.serverless.config.servicePath;
-      this.serverless.config.servicePath = path.join(this.originalServicePath, buildFolder);
-    }
   }
 
   buildWithBoot() {
@@ -145,12 +113,8 @@ class HedgePlugin {
     const functions = this.serverless.service.functions;
     const options = this.options;
     _.forIn(functions, (value, key) => {
-      if (value.handler && !value.hedge) {
-        this.serverless.cli.log('WARNING: Functions with handler are not deployed');
-        this.serverless.cli.log(`         Ignored function name: ${key}`);
-      }
       if (value.hedge) {
-        value.handler = `${this.generateCloudName(value.hedge)}/index.handler`;
+        value.handler = `target/${this.generateCloudName(value.hedge)}/index.handler`;
       }
     });
   }
