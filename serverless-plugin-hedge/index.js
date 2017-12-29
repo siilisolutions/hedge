@@ -45,6 +45,8 @@ class HedgePlugin {
         'after:deploy:function:packageFunction': this.cleanUp.bind(this),
       };
     } else if (this.serverless.service.provider.name === 'azure') {
+      // command package does not work properly with Azure plugin v0.4.0
+      // => not using hooks for package command stages
       this.hooks = {
         'build:execute': this.build.bind(this),
 
@@ -95,12 +97,13 @@ class HedgePlugin {
 
   buildWithBoot() {
     if (this.options.function) {
-      // FIXME: check that function exists in functions
       const fn = this.options.function;
       const fns = this.serverless.service.functions;
-      this.serverless.cli.log(`Building function ${this.options.function} with Hedge...`);
-      childProcess.execSync(`${bootCommand} deploy-to-target -f ${this.options.function}`, { stdio: 'inherit' });
-      this.serverless.cli.log('Build done!');
+      if (fns[fn]["hedge"]) {
+        this.serverless.cli.log(`Building function ${this.options.function} with Hedge...`);
+        childProcess.execSync(`${bootCommand} deploy-to-target -f ${this.options.function}`, { stdio: 'inherit' });
+        this.serverless.cli.log('Build done!');
+      }
     } else {
       // build all functions
       this.serverless.cli.log('Building with Hedge...');
