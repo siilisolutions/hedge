@@ -1,13 +1,16 @@
 {
   "name": "serverless-hedge-plugin",
-  "version": "0.0.1",
-  "description": "Plugin for Hedge",
+  "version": "0.0.1-SNAPSHOT",
+  "description": "Serverless plugin for Hedge",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Janne Kujanpää",
+  "contributors": [],
+  "license": "EPL-1.0",
+  "repository": "github:siilisolutions/hedge",
+  "bugs": "https://github.com/siilisolutions/hedge/issues",
   "dependencies": {
     "bluebird": "^3.5.0",
     "fs-extra": "^5.0.0",
