@@ -40,6 +40,10 @@ class HedgePlugin {
         'before:package:createDeploymentArtifacts': this.package.bind(this),
         'after:package:createDeploymentArtifacts': this.cleanUp.bind(this),
 
+        // called by `invoke local` command
+        'before:invoke:local:invoke': this.package.bind(this),
+        'after:invoke:local:invoke': this.cleanUp.bind(this),
+
         // called by `deploy function` command
         'before:deploy:function:packageFunction': this.deployFunction.bind(this),
         'after:deploy:function:packageFunction': this.cleanUp.bind(this),
