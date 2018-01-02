@@ -103,7 +103,7 @@ class HedgePlugin {
     if (this.options.function) {
       const fn = this.options.function;
       const fns = this.serverless.service.functions;
-      if (fns[fn]["hedge"]) {
+      if (fns[fn] && fns[fn]["hedge"]) {
         this.serverless.cli.log(`Building function ${this.options.function} with Hedge...`);
         childProcess.execSync(`${bootCommand} deploy-to-target -f ${this.options.function}`, { stdio: 'inherit' });
         this.serverless.cli.log('Build done!');
