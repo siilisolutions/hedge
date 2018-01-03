@@ -47,6 +47,12 @@ class HedgePlugin {
         // called by `deploy function` command
         'before:deploy:function:packageFunction': this.deployFunction.bind(this),
         'after:deploy:function:packageFunction': this.cleanUp.bind(this),
+
+        // serverless-offline
+        'before:offline:start:init': this.deployFunction.bind(this),
+        'before:offline:start': this.deployFunction.bind(this),
+        'after:offline:start:init': this.cleanUp.bind(this),
+        'after:offline:start:init': this.cleanUp.bind(this),
       };
     } else if (this.serverless.service.provider.name === 'azure') {
       // command package does not work properly with Azure plugin v0.4.0
