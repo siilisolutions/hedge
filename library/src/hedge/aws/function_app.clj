@@ -3,5 +3,5 @@
 
 
 ; FIXME read parameter for module["exports"][<foo>] from configurations
-(defmacro azure-function [f]
-  `(node-module2 (hedge.aws.function-app/azure-function-wrapper ~f) "handler"))
+(defmacro lambda-apigw-function [f]
+  `(node-module2 (hedge.aws.function-app/lambda-apigw-function-wrapper ~f) "handler"))

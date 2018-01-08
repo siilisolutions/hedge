@@ -57,10 +57,10 @@
         ff (clojure.java.io/file tgt (ns-file func-ns))]
     (doto ff
       clojure.java.io/make-parents
-      (spit `(~'ns ~func-ns (:require [hedge.aws.function-app :refer-macros [~'azure-function]]
+      (spit `(~'ns ~func-ns (:require [hedge.aws.function-app :refer-macros [~'lambda-apigw-function]]
                                      [~handler-ns :as ~'handler])))
       (spit `(~'enable-console-print!) :append true)
-      (spit `(~'azure-function ~(symbol (str 'handler "/" handler-func))) :append true))
+      (spit `(~'lambda-apigw-function ~(symbol (str 'handler "/" handler-func))) :append true))
     (clojure.pprint/pprint (slurp ff))
     {:fs (-> fs (c/add-source tgt) c/commit!)
      :func func-ns

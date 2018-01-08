@@ -78,9 +78,9 @@
       (println (str "final result: " response))
       (callback nil (clj->js response)))))
 
-(defn azure-function-wrapper
+(defn lambda-apigw-function-wrapper
   ([handler]
-   (azure-function-wrapper handler nil))
+   (lambda-apigw-function-wrapper handler nil))
   ([handler codec]
    (fn [event context callback]
      (try
