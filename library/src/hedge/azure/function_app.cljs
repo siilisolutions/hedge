@@ -75,4 +75,4 @@
                                            (go (ok (<! result))))
             (string? result)             (ok {:body result})
             :else                        (ok result)))
-       (catch js/Object e (.done context e nil))))))
+       (catch :default e (.done context e nil))))))
