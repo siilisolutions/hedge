@@ -154,10 +154,13 @@
 (c/deftask hedge-azure
   "Build and deploy function app(s)"
   [a app-name APP str "the app name"
-   r rg-name RGN str "the resource group name"]
+   r rg-name RGN str "the resource group name"
+   f function FUNCTION str "Function to deploy"
+   O optimizations LEVEL kw "The optimization level."]
+  (c/set-env! :function-to-build (or function :all))
   (if (or (nil? app-name) (nil? rg-name))
     (throw (Exception. "Missing function app or resource group name"))
     (comp
-     (compile-function-app :optimizations :simple)
+     (compile-function-app :optimizations (or optimizations :advanced))
      (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
      (azure-deploy :app-name app-name :rg-name rg-name))))
