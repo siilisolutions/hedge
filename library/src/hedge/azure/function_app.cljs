@@ -54,7 +54,7 @@
 
 (defn ring->azure [context codec]
   (fn [raw-resp]
-    (.log context (str "result: " raw-resp))
+    #_(.log context (str "result: " raw-resp))
     (if (string? raw-resp)
       (.done context nil (clj->js {:body raw-resp}))
       (.done context nil (clj->js raw-resp)))))
@@ -69,7 +69,7 @@
              logfn (.-log context)
              result (handler (into (azure->ring req) {:log logfn}))]
 
-          (.log context (str "request: " (js->clj req)))
+          #_(.log context (str "request: " (js->clj req)))
           (cond
             (satisfies? ReadPort result) (do (.log context "Result is channel, content pending...")
                                            (go (ok (<! result))))
