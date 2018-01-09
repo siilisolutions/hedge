@@ -3,7 +3,7 @@
   (:require
    [boot.core          :as c]
    [boot.util          :as util]
-   [boot.task.built-in :refer [sift]]
+   [boot.task.built-in :refer [sift target]]
    [adzerk.boot-cljs :refer [cljs]] 
    [clojure.string :refer [split]]
    [clojure.java.io :refer [file input-stream]]
@@ -16,7 +16,7 @@
 
 
 
-(c/deftask function-app
+(c/deftask ^:private function-app
   []
   (c/with-pre-wrap fs
     (-> fs
@@ -37,7 +37,7 @@
 
 (defn appname [b] (SdkContext/randomResourceName b, 20))
 
-(c/deftask create-function-app
+(c/deftask ^:private create-function-app
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
    f auth-location AFL str "authorization file location"]
@@ -110,12 +110,12 @@
            :password (.ftpPassword pbo)}}))
 
 
-(c/deftask azure-publish-profile
+(c/deftask ^:private azure-publish-profile
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
   (util/info (prn-str (publishing-profile rg-name app-name))))
 
-(c/deftask azure-deploy
+(c/deftask ^:private azure-deploy
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
   (c/with-pass-thru [fs]
@@ -128,14 +128,36 @@
           (upload-file ftp-profile (str path) in))))))
 
 
-
-(c/deftask hedge-azure
-  [a app-name APP str "the app name"
-   r rg-name RGN str "the resource group name"]
+(c/deftask ^:private compile-function-app
+  "Build function app(s)"
+  [O optimizations LEVEL kw "The optimization level."]
+  (c/task-options!
+   cljs #(assoc-in % [:compiler-options :target] :nodejs))
   (comp
    (function-app)
-   (cljs :optimizations :advanced
-         :compiler-options {:target :nodejs
-                            :externs ["documentdb.ext.js"]})
-   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-   (azure-deploy :app-name app-name :rg-name rg-name)))
+   (cljs :optimizations optimizations)))
+
+; FIXME: 
+; * if optimizations :none inject :main option (is it even possible)
+; * read :compiler-options from command line and merge with current config
+(c/deftask deploy-to-target
+  "Build function app(s) and store output to target"
+  [O optimizations LEVEL kw "The optimization level."
+   f function FUNCTION str "Function to compile"]
+  (c/set-env! :function-to-build (or function :all))
+  (comp
+    (compile-function-app :optimizations (or optimizations :simple))
+    (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+    (target)))
+
+; FIXME: check env. variables for deployment
+(c/deftask hedge-azure
+  "Build and deploy function app(s)"
+  [a app-name APP str "the app name"
+   r rg-name RGN str "the resource group name"]
+  (if (or (nil? app-name) (nil? rg-name))
+    (throw (Exception. "Missing function app or resource group name"))
+    (comp
+     (compile-function-app :optimizations :simple)
+     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+     (azure-deploy :app-name app-name :rg-name rg-name))))
