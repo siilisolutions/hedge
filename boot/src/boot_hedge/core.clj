@@ -17,13 +17,12 @@
 
 
 (c/deftask ^:private function-app
+  "Generates fileset for cljs and deployment files from hedge.edn"
   []
   (c/with-pre-wrap fs
     (-> fs
         read-conf
         (generate-files fs))))
-
-
 
 (defn azure
   ([]
@@ -37,10 +36,10 @@
 
 (defn appname [b] (SdkContext/randomResourceName b, 20))
 
-(c/deftask ^:private create-function-app
+(c/deftask create-function-app
+  "Creates given function app"
   [a app-name APP str "the app name"
-   r rg-name RGN str "the resource group name"
-   f auth-location AFL str "authorization file location"]
+   r rg-name RGN str "the resource group name"]
   (-> (azure)
       .appServices
       .functionApps
@@ -110,12 +109,14 @@
            :password (.ftpPassword pbo)}}))
 
 
-(c/deftask ^:private azure-publish-profile
+(c/deftask azure-publish-profile
+  "Shows details of publishing profile"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
   (util/info (prn-str (publishing-profile rg-name app-name))))
 
 (c/deftask ^:private azure-deploy
+  "Uploads fileset to Azure"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
   (c/with-pass-thru [fs]
@@ -140,15 +141,32 @@
 ; FIXME: 
 ; * if optimizations :none inject :main option (is it even possible)
 ; * read :compiler-options from command line and merge with current config
-(c/deftask deploy-to-target
+(c/deftask deploy-to-directory
   "Build function app(s) and store output to target"
-  [O optimizations LEVEL kw "The optimization level."
-   f function FUNCTION str "Function to compile"]
+  [O optimizations LEVEL kw "The optimization level"
+   f function FUNCTION str "Function to compile"
+   d directory DIR str "Directory to deploy into"]
   (c/set-env! :function-to-build (or function :all))
   (comp
     (compile-function-app :optimizations (or optimizations :simple))
     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-    (target)))
+    (target :dir (or directory "target"))))
+
+(c/deftask ^:private read-files
+  "Read files from target directory into task fileset"
+  [d directory DIR str "Directory to read from"]
+  (c/with-pre-wrap fs
+    (c/commit! (c/add-resource fs (file (or directory "target"))))))
+
+(c/deftask deploy-from-directory
+  "Deploy files from target directory."
+  [a app-name APP str "the app name"
+   r rg-name RGN str "the resource group name"
+   d directory DIR str "Directory to deploy into"]
+  (comp
+   (read-files :directory directory)
+   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+   (azure-deploy :app-name app-name :rg-name rg-name)))
 
 ; FIXME: check env. variables for deployment
 (c/deftask hedge-azure
