@@ -48,6 +48,7 @@
     "__"
     (dashed-alphanumeric (name handler))))
 
+; TODO: parametrize output's lambda-apigw-function
 (defn generate-source [fs {:keys [handler]}]
   "Generates multiple source files with rules read from hedge.edn"
   (let [handler-ns (symbol (namespace handler))
@@ -72,42 +73,38 @@
     (spit  {:require [fns]}))
   dir)
 
-(defn function-json [path authorization]
-  {:bindings
-   [{:authLevel (name authorization),
-     :type "httpTrigger",
-     :direction "in",
-     :name "req"
-     :route path}
-    {:type "http", :direction "out", :name "$return"}],
-   :disabled false})
-
 (defn serialize-json [f d]
   (generate-stream d (clojure.java.io/writer f)))
-
-(defn generate-function-json [{:keys [fs cloud-name]} path {:keys [authorization] :or {authorization :anonymous}}]
-  (let [tgt (c/tmp-dir!)
-        func-dir (clojure.java.io/file tgt cloud-name)]
-  (doto (clojure.java.io/file func-dir "function.json")
-    clojure.java.io/make-parents
-    (serialize-json (function-json path authorization)))
-  (-> fs (c/add-resource tgt) c/commit!)))
-
 
 (defn generate-js-func-compile [{:keys [fs func cloud-name] :as conf}]
   (let [tgt (c/tmp-dir!)
         func-dir (clojure.java.io/file tgt cloud-name)]
     (-> func-dir
         (generate-cljs-edn func))
-    (assoc conf :fs (-> fs (c/add-source tgt) c/commit!))))
+    (-> fs (c/add-source tgt) c/commit!)))
 
-(defn generate-function [fs [path func]]
-  (->
-    (generate-source fs func)
-    generate-js-func-compile
-    (generate-function-json path func)))
+(defn generate-function [f]
+  (fn [fs [path func]]
+    (->
+      (f fs func)
+      generate-js-func-compile)))
 
-(defn generate-files [{:keys [api]} fs]
+(defn generate-build-files
+  "Generates wrapped source codes and edn files for build"
+  [fs conf key f]
   (if (= (c/get-env :function-to-build) :all)
-    (reduce generate-function fs api)
-    (reduce generate-function fs (select-keys api [(c/get-env :function-to-build)]))))
+    (reduce (generate-function f) fs (key conf))
+    (reduce (generate-function f) fs (select-keys (key conf) [(c/get-env :function-to-build)]))))
+
+(defn generate-files-cf-template
+  "WIP: generate cloudformation template"
+  [fs conf]
+  fs)
+
+; TODO: maybe this should be task?
+(defn generate-files [conf fs]
+  "Generates files for build and deploy"
+  (-> fs
+    (generate-build-files conf :api generate-source)
+    #_(generate-build-files conf :timer generate-source-timer)
+    (generate-files-cf-template conf)))
