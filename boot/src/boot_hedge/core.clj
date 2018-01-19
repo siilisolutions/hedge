@@ -7,7 +7,8 @@
    [adzerk.boot-cljs :refer [cljs]] 
    [clojure.string :refer [split]]
    [clojure.java.io :refer [file input-stream]]
-   [boot-hedge.function-app :refer [read-conf generate-files]])
+   [boot-hedge.function-app :refer [read-conf generate-files]]
+   [boot-hedge.common.core :refer [print-and-return]])
   (:import [com.microsoft.azure.management Azure]
            [com.microsoft.rest LogLevel]
            [com.microsoft.azure.management.resources.fluentcore.arm Region]
@@ -22,6 +23,7 @@
   (c/with-pre-wrap fs
     (-> fs
         read-conf
+        print-and-return
         (generate-files fs))))
 
 (defn azure
@@ -115,8 +117,8 @@
    r rg-name RGN str "the resource group name"]
   (util/info (prn-str (publishing-profile rg-name app-name))))
 
-(c/deftask ^:private azure-deploy
-  "Uploads fileset to Azure"
+(c/deftask ^:private deploy-to-azure
+  "Deploy fileset to Azure"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
   (c/with-pass-thru [fs]
@@ -146,7 +148,7 @@
   [O optimizations LEVEL kw "The optimization level"
    f function FUNCTION str "Function to compile"
    d directory DIR str "Directory to deploy into"]
-  (c/set-env! :function-to-build (or function :all))
+  (when function (c/set-env! :function-to-build function))
   (comp
     (compile-function-app :optimizations (or optimizations :simple))
     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
@@ -162,23 +164,34 @@
   "Deploy files from target directory."
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
-   d directory DIR str "Directory to deploy into"]
+   d directory DIR str "Directory to deploy from"]
   (comp
    (read-files :directory directory)
    (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-   (azure-deploy :app-name app-name :rg-name rg-name)))
+   (deploy-to-azure :app-name app-name :rg-name rg-name)))
 
 ; FIXME: check env. variables for deployment
-(c/deftask hedge-azure
+(c/deftask deploy-azure
   "Build and deploy function app(s)"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
    f function FUNCTION str "Function to deploy"
    O optimizations LEVEL kw "The optimization level."]
-  (c/set-env! :function-to-build (or function :all))
+  (when function (c/set-env! :function-to-build function))
   (if (or (nil? app-name) (nil? rg-name))
     (throw (Exception. "Missing function app or resource group name"))
     (comp
      (compile-function-app :optimizations (or optimizations :advanced))
      (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-     (azure-deploy :app-name app-name :rg-name rg-name))))
+     (deploy-to-azure :app-name app-name :rg-name rg-name))))
+
+(c/deftask hedge-azure
+  "(Deprecated: use deploy-azure) Build and deploy function app(s)"
+  [a app-name APP str "the app name"
+   r rg-name RGN str "the resource group name"
+   f function FUNCTION str "Function to deploy"
+   O optimizations LEVEL kw "The optimization level."]
+  (deploy-azure :app-name app-name
+                :rg-name rg-name
+                :function function
+                :optimizations optimizations))
