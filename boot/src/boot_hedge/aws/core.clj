@@ -1,10 +1,13 @@
-(ns boot-hedge.aws
+(ns boot-hedge.aws.core
   {:boot/export-tasks true}
   (:require
    [boot.core          :as c]
+   [boot.util          :as u]
    [boot.task.built-in :refer [sift target]]
    [adzerk.boot-cljs :refer [cljs]]
-   [boot-hedge.lambda :refer [read-conf generate-files]]))
+   [clojure.java.io :refer [file]]
+   [boot-hedge.lambda :refer [read-conf generate-files]]
+   [boot-hedge.aws.cloudformation-api :as cf-api]))
 
 (c/deftask ^:private function-app
   []
