@@ -150,7 +150,7 @@
   (comp
     (compile-function-app :optimizations (or optimizations :simple))
     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-    (target :dir (or directory "target"))))
+    (target :dir #{(or directory "target")})))
 
 (c/deftask ^:private read-files
   "Read files from target directory into task fileset"
