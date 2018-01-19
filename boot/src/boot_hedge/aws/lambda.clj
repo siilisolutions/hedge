@@ -6,11 +6,6 @@
    [cheshire.core :refer [generate-stream]]
    [boot.filesystem :as fs]))
 
-
-(defn print-and-return [s]
-  (clojure.pprint/pprint s)
-  s)
-
 (defn read-conf [fileset]
   (->> fileset
        c/input-files
@@ -18,8 +13,7 @@
        first
        c/tmp-file
        slurp
-       clojure.edn/read-string
-       print-and-return))
+       clojure.edn/read-string))
 
 (defn ns-file [ns]
   (-> (name ns)
@@ -92,19 +86,11 @@
 (defn generate-build-files
   "Generates wrapped source codes and edn files for build"
   [fs conf key f]
-  (if (= (c/get-env :function-to-build) :all)
-    (reduce (generate-function f) fs (key conf))
-    (reduce (generate-function f) fs (select-keys (key conf) [(c/get-env :function-to-build)]))))
+  (if (c/get-env :function-to-build)
+    (reduce (generate-function f) fs (select-keys (key conf) [(c/get-env :function-to-build)]))
+    (reduce (generate-function f) fs (key conf))))
 
-(defn generate-files-cf-template
-  "WIP: generate cloudformation template"
-  [fs conf]
-  fs)
-
-; TODO: maybe this should be task?
 (defn generate-files [conf fs]
   "Generates files for build and deploy"
   (-> fs
-    (generate-build-files conf :api generate-source)
-    #_(generate-build-files conf :timer generate-source-timer)
-    (generate-files-cf-template conf)))
+    (generate-build-files conf :api generate-source)))
