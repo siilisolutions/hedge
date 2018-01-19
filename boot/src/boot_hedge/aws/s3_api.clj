@@ -1,4 +1,4 @@
-(ns boot-hedge.s3-api
+(ns boot-hedge.aws.s3-api
   (:require [clojure.java.io :refer [file]])
   (:import [com.amazonaws.services.s3 AmazonS3ClientBuilder]
            [com.amazonaws.auth DefaultAWSCredentialsProviderChain]

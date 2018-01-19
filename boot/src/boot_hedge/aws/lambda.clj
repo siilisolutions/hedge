@@ -1,4 +1,4 @@
-(ns boot-hedge.lambda
+(ns boot-hedge.aws.lambda
   (:require
    [boot.core          :as c]
    [boot.util          :as util]

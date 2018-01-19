@@ -1,4 +1,4 @@
-(ns boot-hedge.cloudformation-api
+(ns boot-hedge.aws.cloudformation-api
   (:import [com.amazonaws.services.cloudformation AmazonCloudFormationClientBuilder]
            [com.amazonaws.regions Regions]
            [com.amazonaws.services.cloudformation.model DescribeStacksRequest]
