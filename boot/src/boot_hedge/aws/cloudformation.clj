@@ -2,13 +2,16 @@
   (:require
    [boot.core          :as c]
    [boot-hedge.common.core :as common]
-   [boot-hedge.common.core :refer [serialize-json]]
    [camel-snake-kebab.core :refer [->camelCaseString]]))
 
-(defn cf-output
+(defn output
   []
-  {:HedgeDeploymentBucketName {:Value {:Ref :HedgeDeploymentBucket}}}
-  {:HedgeAPIEndpoint {:Value {:Ref :TODOFIXTHIS}}})
+  {:HedgeAPIEndpoint {:Value {"Fn::Join" ["" ["https://"
+                                              {:Ref "ServerlessRestApi"}
+                                              ".execute-api."
+                                              {:Ref "AWS::Region"}
+                                              ".amazonaws.com/Prod"]]}
+                      :Description "API endpoint base URL"}})
 
 (defn api-function
   [config s3-zip name]
@@ -39,11 +42,11 @@
    :Transform "AWS::Serverless-2016-10-31"
    :Description (str "Hedge generated template for " stack-name)
    :Resources (merge (functions config (str "s3://hedge-" stack-name "-deploy/functions.zip")))
-   :Outputs {}})
+   :Outputs (output)})
 
 (defn write-template-file
   [config stack-name file]
-  (serialize-json file (base config stack-name)))
+  (common/serialize-json file (base config stack-name)))
 
 (defn create-template
   [config fs stack-name]
