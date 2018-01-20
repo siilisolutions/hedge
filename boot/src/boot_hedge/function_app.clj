@@ -3,8 +3,8 @@
    [boot.core          :as c]
    [boot.util          :as util]
    [clojure.string :as str]
-   [cheshire.core :refer [generate-stream]]
-   [boot.filesystem :as fs]))
+   [boot.filesystem :as fs]
+   [boot-hedge.common.core :refer [serialize-json]]))
 
 (defn read-conf [fileset]
   (->> fileset
@@ -73,9 +73,6 @@
      :route path}
     {:type "http", :direction "out", :name "$return"}],
    :disabled false})
-
-(defn serialize-json [f d]
-  (generate-stream d (clojure.java.io/writer f)))
 
 (defn generate-function-json [{:keys [fs cloud-name]} path {:keys [authorization] :or {authorization :anonymous}}]
   (let [tgt (c/tmp-dir!)

@@ -9,6 +9,7 @@
    [boot-hedge.common.core :refer [print-and-return]]
    [boot-hedge.aws.lambda :refer [read-conf generate-files]]
    [boot-hedge.aws.cloudformation-api :as cf-api]
+   [boot-hedge.aws.cloudformation :as cf]
    [boot-hedge.aws.s3-api :as s3-api]))
 
 (c/deftask ^:private function-app
@@ -23,13 +24,14 @@
   [n stack-name STACK str "Name of the stack"]
   (c/with-pass-thru [fs]
     (let [client (s3-api/client)
+          bucket (str "hedge-" stack-name "-deploy")
           artefact (->> fs
                         (c/input-files)
                         (c/by-name #{"functions.zip"})
                         (first)
                         (c/tmpfile))]
-      (s3-api/ensure-bucket client stack-name)
-      (s3-api/put-object client stack-name "functions.zip" artefact))))
+      (s3-api/ensure-bucket client bucket)
+      (s3-api/put-object client bucket "functions.zip" artefact))))
 
 (c/deftask ^:private deploy-stack
   [n stack-name STACK str "Name of the stack"]
@@ -37,7 +39,7 @@
     (let [client (cf-api/client)
           cf-file (->> fs
                        (c/input-files)
-                       (c/by-name #{"cloudformation.yml"})
+                       (c/by-name #{"cloudformation.json"})
                        (first)
                        (c/tmpfile))]
       (cf-api/deploy-stack client stack-name cf-file))))
@@ -49,7 +51,6 @@
    (zip :file "functions.zip")
    ; zip creates artefact we upload!
    (upload-artefact :stack-name stack-name)
-   ;(create-formation template)
    (deploy-stack :stack-name stack-name)))
 
 (c/deftask ^:private compile-function-app
@@ -62,8 +63,11 @@
    (cljs :optimizations optimizations)))
 
 (c/deftask create-template
-  []
-  identity)
+  [n stack-name STACK str "Name of the stack"]
+  (c/with-pre-wrap fs
+    (-> fs
+        (read-conf)
+        (cf/create-template fs stack-name))))
 
 ; FIXME: 
 ; * if optimizations :none inject :main option (is it even possible)
@@ -74,10 +78,10 @@
   [O optimizations LEVEL kw "The optimization level"
    f function FUNCTION str "Function to compile"
    d directory DIR str "Directory to deploy into"]
-  (when function (c/set-env! :function-to-build function))
+  (when function (do (c/set-env! :function-to-build function)
+                   (u/warn "Note: output of this task when using -f flag is not compatible with deploy-from-directory task")))
   (comp
     (compile-function-app :optimizations (or optimizations :simple))
-    (create-template)
     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
     (target :dir #{(or directory "target")})))
 
@@ -93,6 +97,8 @@
    d directory DIR str "Directory to deploy from"]
   (comp
    (read-files :directory directory)
+   (create-template :stack-name stack-name)
+   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
    (deploy-to-aws :stack-name stack-name)))
 
 (c/deftask deploy-aws
@@ -103,6 +109,6 @@
     (throw (Exception. "Missing stack name"))
     (comp
      (compile-function-app :optimizations (or optimizations :advanced))
-     (create-template)
+     (create-template :stack-name stack-name)
      (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
      (deploy-to-aws :stack-name stack-name))))

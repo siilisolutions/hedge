@@ -4,6 +4,7 @@
                           [boot/core "2.7.2" :scope "provided"]
                           [adzerk/boot-cljs "2.1.4"]
                           [cheshire "5.8.0"]
+                          [camel-snake-kebab "0.4.0"]
                           [com.fasterxml.jackson.core/jackson-databind "2.7.0"]
                           [com.microsoft.azure/azure "1.2.1"]
                           [com.amazonaws/aws-java-sdk-cloudformation "1.11.264"]

@@ -90,7 +90,8 @@
 (defn wait-for-execute
   "Wait until changset is created"
   [client stack-name]
-  (poller client stack-name #{"CREATE_COMPLETE" "UPDATE_COMPLETE"} {}))
+  (poller client stack-name #{"CREATE_COMPLETE" "UPDATE_COMPLETE"} 
+          {"ROLLBACK_COMPLETE" "ROLLBACK_IN_PROGRESS"}))
 
 ;logic
 (defn create-or-update-stack

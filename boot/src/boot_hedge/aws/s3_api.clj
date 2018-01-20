@@ -40,14 +40,3 @@
       (if (not (bucket-exists-globally? client bucket-name))
         (create-bucket client bucket-name)
         (throw (Exception. "Bucket owned by someone else"))))))
-
-#_( 
-    (use 'clojure.stacktrace)
-    (print-stack-trace *e 55)
-    (def c (client))
-    (bucket-exists-globally? c "hedge-test-jk")
-    (get-bucket c "hedge-test-jk")
-    (get-bucket c "hedge-test-jk-fghjaksjasjasjsa")
-    (ensure-bucket c "hedge-test-jk")
-    (ensure-bucket c "hedge-test-jk-22")
-    (put-object c "hedge-test-jk-22" "foo.yml" "/Users/janne.kujanpaa/src/hedge-example-aws/test-deploy/deploy.yml"))
