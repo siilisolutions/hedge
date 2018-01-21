@@ -45,6 +45,7 @@
                        (c/by-name #{"cloudformation.json"})
                        (first)
                        (c/tmp-file))]
+      (u/info "Deploying to AWS\n")
       (cf-api/deploy-stack client stack-name cf-file))))
 
 (c/deftask ^:private deploy-to-aws

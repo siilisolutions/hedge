@@ -81,35 +81,35 @@
     (catch AmazonCloudFormationException e
       (throw (Exception. "API call failed" e)))))
 
-; other methods
-(defn poller
-  "helper poller for wait-for* methods."
-  [client name-or-id f ok-statuses fail-statuses]
-  ; TODO rewrite, please
-  (let [count (atom 0)
-        result (atom nil)]
-    (while (< @count 720)
-      (let [status (f client name-or-id)
-            ok (contains? ok-statuses status)
-            fail (contains? fail-statuses status)]
-        (println "Status in now " status)
-        (when (or ok fail) 
-          (swap! count + 721)
-          (reset! result status)))
-      (Thread/sleep 5000))
-    @result))
-
-(defn wait-for-changeset
+(defn wait-for-changeset-create
   "Wait until changset is created"
   [client changeset-id]
-  (poller client changeset-id changeset-status #{"CREATE_COMPLETE"} 
-          #{"FAILED"}))
+  (-> client
+      (.waiters)
+      (.changeSetCreateComplete)
+      (.run (-> (DescribeChangeSetRequest.)
+                (.withChangeSetName changeset-id)
+                (WaiterParameters.)))))
 
-(defn wait-for-execute
-  "Wait until changset is created"
+(defn wait-for-stack-create
+  "Wait until stack is created"
   [client stack-name]
-  (poller client stack-name stack-status #{"CREATE_COMPLETE" "UPDATE_COMPLETE"} 
-          {"ROLLBACK_COMPLETE" "ROLLBACK_IN_PROGRESS"}))
+  (-> client
+      (.waiters)
+      (.stackCreateComplete)
+      (.run (-> (DescribeStacksRequest.)
+                (.withStackName stack-name)
+                (WaiterParameters.)))))
+
+(defn wait-for-stack-update
+  "Wait until stack is updated"
+  [client stack-name]
+  (-> client
+      (.waiters)
+      (.stackUpdateComplete)
+      (.run (-> (DescribeStacksRequest.)
+                (.withStackName stack-name)
+                (WaiterParameters.)))))
 
 ;logic
 (defn create-or-update-stack
@@ -140,16 +140,16 @@
   "Create or deploy stack with given name and template"
   [client stack-name template]
   (let [template-string (slurp template)
-        f (if (stack-exists? client stack-name) 
-            (do (println "Stack exists, updating stack") update-stack) 
-            (do (println "Stack not found, creating new stack") create-stack))
-        create-changeset-result (f client stack-name template-string)
+        stack-exists (stack-exists? client stack-name)
+        create-changeset-result ((if stack-exists update-stack create-stack) client stack-name template-string)
         changeset-id (.getId create-changeset-result)]
-    (println (str "Stack status changed to " (wait-for-changeset client changeset-id)))
-    (let [execute-changeset-result (execute-changeset client changeset-id)]
-      (println (str "Stack status changed to " (wait-for-execute client stack-name)))
-      (println "Stack is ready!")
-      (clojure.pprint/pprint (-> (describe-stacks client stack-name)
-                                 (.getStacks)
-                                 (first)
-                                 (.getOutputs))))))
+    (wait-for-changeset-create client changeset-id)
+    (execute-changeset client changeset-id)
+    (if stack-exists
+      (wait-for-stack-update client stack-name)
+      (wait-for-stack-create client stack-name))
+    (println "Stack is ready!")
+    (clojure.pprint/pprint (-> (describe-stacks client stack-name)
+                               (.getStacks)
+                               (first)
+                               (.getOutputs)))))
