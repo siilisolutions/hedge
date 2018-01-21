@@ -8,6 +8,17 @@
   (clojure.pprint/pprint s)
   s)
 
+(defn now
+  []
+  (java.util.Date.))
+
+(defn date->unixts
+  [date]
+  (-> date
+      (.getTime)
+      (/ 1000)
+      (int)))
+
 (defn serialize-json [f d]
   (generate-stream d (clojure.java.io/writer f)))
 

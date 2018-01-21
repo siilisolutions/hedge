@@ -37,20 +37,21 @@
   (merge (api-functions (or (:api config) {}) s3-zip)))
 
 (defn base
-  [config stack-name]
-  {:AWSTemplateFormatVersion "2010-09-09"
-   :Transform "AWS::Serverless-2016-10-31"
-   :Description (str "Hedge generated template for " stack-name)
-   :Resources (merge (functions config (str "s3://hedge-" stack-name "-deploy/functions.zip")))
-   :Outputs (output)})
+  [config stack-name deploy-version]
+  (let [s3-zip-url (str "s3://hedge-" stack-name "-deploy/functions-" deploy-version ".zip")]
+    {:AWSTemplateFormatVersion "2010-09-09"
+     :Transform "AWS::Serverless-2016-10-31"
+     :Description (str "Hedge generated template for " stack-name)
+     :Resources (merge (functions config s3-zip-url))
+     :Outputs (output)}))
 
 (defn write-template-file
-  [config stack-name file]
-  (common/serialize-json file (base config stack-name)))
+  [config stack-name file deploy-version]
+  (common/serialize-json file (base config stack-name deploy-version)))
 
 (defn create-template
-  [config fs stack-name]
+  [config fs stack-name deploy-version]
   (let [tmp (c/tmp-dir!)
         tmp-file (clojure.java.io/file tmp "cloudformation.json")]
-    (write-template-file config stack-name tmp-file)
+    (write-template-file config stack-name tmp-file deploy-version)
     (-> fs (c/add-resource tmp) c/commit!)))

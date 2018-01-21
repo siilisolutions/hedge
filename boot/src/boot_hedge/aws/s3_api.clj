@@ -2,7 +2,9 @@
   (:require [clojure.java.io :refer [file]])
   (:import [com.amazonaws.services.s3 AmazonS3ClientBuilder]
            [com.amazonaws.auth DefaultAWSCredentialsProviderChain]
-           [com.amazonaws.regions Regions]))
+           [com.amazonaws.regions Regions]
+           [com.amazonaws.services.s3.model BucketVersioningConfiguration]
+           [com.amazonaws.services.s3.model SetBucketVersioningConfigurationRequest]))
 
 (defn client
   "Creates AmazonCloudFormationClient which is used by other API methods"
@@ -15,6 +17,13 @@
 (defn create-bucket
   [client bucket-name]
   (.createBucket client bucket-name))
+
+(defn enable-versioning
+  [client bucket-name]
+  (->> BucketVersioningConfiguration/ENABLED
+      (BucketVersioningConfiguration.) 
+      (SetBucketVersioningConfigurationRequest. bucket-name)
+      (.setBucketVersioningConfiguration client)))
 
 (defn get-bucket
   [client bucket-name]
@@ -35,8 +44,10 @@
 (defn ensure-bucket
   [client bucket-name]
   (let [bucket (get-bucket client bucket-name)]
-    (if bucket 
+    (if bucket
       bucket
-      (if (not (bucket-exists-globally? client bucket-name))
-        (create-bucket client bucket-name)
-        (throw (Exception. "Bucket owned by someone else"))))))
+      (if (bucket-exists-globally? client bucket-name)
+        (throw (Exception. "Bucket owned by someone else"))
+        (do
+          (create-bucket client bucket-name))))))
+          ;(enable-versioning client bucket-name))))))

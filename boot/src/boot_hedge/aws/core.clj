@@ -6,7 +6,7 @@
    [boot.task.built-in :refer [sift target zip]]
    [adzerk.boot-cljs :refer [cljs]]
    [clojure.java.io :refer [file]]
-   [boot-hedge.common.core :refer [print-and-return]]
+   [boot-hedge.common.core :refer [print-and-return now date->unixts]]
    [boot-hedge.aws.lambda :refer [read-conf generate-files]]
    [boot-hedge.aws.cloudformation-api :as cf-api]
    [boot-hedge.aws.cloudformation :as cf]
@@ -21,7 +21,8 @@
         (generate-files fs))))
 
 (c/deftask ^:private upload-artefact
-  [n stack-name STACK str "Name of the stack"]
+  [n stack-name STACK str "Name of the stack"
+   v deploy-version VERSION str "Version of S3 deployment file"]
   (c/with-pass-thru [fs]
     (let [client (s3-api/client)
           bucket (str "hedge-" stack-name "-deploy")
@@ -29,9 +30,11 @@
                         (c/input-files)
                         (c/by-name #{"functions.zip"})
                         (first)
-                        (c/tmpfile))]
+                        (c/tmp-file))]
+      (u/info (str "Ensuring bucket " bucket " exists\n"))
       (s3-api/ensure-bucket client bucket)
-      (s3-api/put-object client bucket "functions.zip" artefact))))
+      (u/info (str "Uploading functions-" deploy-version ".zip into bucket\n"))
+      (s3-api/put-object client bucket (str "functions-" deploy-version ".zip") artefact))))
 
 (c/deftask ^:private deploy-stack
   [n stack-name STACK str "Name of the stack"]
@@ -41,16 +44,17 @@
                        (c/input-files)
                        (c/by-name #{"cloudformation.json"})
                        (first)
-                       (c/tmpfile))]
+                       (c/tmp-file))]
       (cf-api/deploy-stack client stack-name cf-file))))
 
 (c/deftask ^:private deploy-to-aws
   "Deploy fileset to Azure"
-  [n stack-name STACK str "Name of the stack"]
+  [n stack-name STACK str "Name of the stack"
+   v deploy-version VERSION str "Version of S3 deployment file"]
   (comp
    (zip :file "functions.zip")
    ; zip creates artefact we upload!
-   (upload-artefact :stack-name stack-name)
+   (upload-artefact :stack-name stack-name :deploy-version deploy-version)
    (deploy-stack :stack-name stack-name)))
 
 (c/deftask ^:private compile-function-app
@@ -63,11 +67,12 @@
    (cljs :optimizations optimizations)))
 
 (c/deftask create-template
-  [n stack-name STACK str "Name of the stack"]
+  [n stack-name STACK str "Name of the stack"
+   v deploy-version VERSION str "Version of S3 deployment file"]
   (c/with-pre-wrap fs
     (-> fs
         (read-conf)
-        (cf/create-template fs stack-name))))
+        (cf/create-template fs stack-name deploy-version))))
 
 ; FIXME: 
 ; * if optimizations :none inject :main option (is it even possible)
@@ -97,9 +102,9 @@
    d directory DIR str "Directory to deploy from"]
   (comp
    (read-files :directory directory)
-   (create-template :stack-name stack-name)
+   (create-template :stack-name stack-name :deploy-version (str (date->unixts (now))))
    (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-   (deploy-to-aws :stack-name stack-name)))
+   (deploy-to-aws :stack-name stack-name :deploy-version (str (date->unixts (now))))))
 
 (c/deftask deploy-aws
   "Build and deploy function app(s)"
@@ -109,6 +114,6 @@
     (throw (Exception. "Missing stack name"))
     (comp
      (compile-function-app :optimizations (or optimizations :advanced))
-     (create-template :stack-name stack-name)
+     (create-template :stack-name stack-name :deploy-version (str (date->unixts (now))))
      (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-     (deploy-to-aws :stack-name stack-name))))
+     (deploy-to-aws :stack-name stack-name :deploy-version (str (date->unixts (now)))))))
