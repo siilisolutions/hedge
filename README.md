@@ -148,10 +148,20 @@ To be written
 
 ### Other Usage Examples
 
+     
+    # Get information about the Azure Publishing Profile
+    boot azure-publish-profile -a functionapp -r resourcegroup
+
     # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
     boot deploy-azure -a functionapp -r resourcegroup target
  
-    # Persist the compiled output without deploy
+    # Persist the compiled output to target/ without deploy
     boot deploy-to-target
- 
- 
+
+    # Persist the compiled output to <directory>
+    boot deploy-to-directory -O <optimization level> -f <function name> -d <directory>
+
+    # Deploy compiled artifacts from target directory (index.js and function.json)
+    boot deploy-azure-from-directory -a functionapp -r resourcegroup -d <directory>
+
+
