@@ -158,11 +158,11 @@
   (c/with-pre-wrap fs
     (c/commit! (c/add-resource fs (file (or directory "target"))))))
 
-(c/deftask deploy-from-directory
-  "Deploy files from target directory."
+(c/deftask deploy-azure-from-directory
+  "Deploy files from target directory to Azure."
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
-   d directory DIR str "Directory to deploy into"]
+   d directory DIR str "Directory to deploy from"]
   (comp
    (read-files :directory directory)
    (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
