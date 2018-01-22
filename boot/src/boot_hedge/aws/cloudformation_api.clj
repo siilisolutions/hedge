@@ -1,6 +1,5 @@
 (ns boot-hedge.aws.cloudformation-api
-  (:require [clojure.pprint]
-            [boot-hedge.common.core :refer [now]])
+  (:require [boot-hedge.common.core :refer [now]])
   (:import [com.amazonaws.services.cloudformation AmazonCloudFormationClientBuilder]
            [com.amazonaws.regions Regions]
            [com.amazonaws.services.cloudformation.model DescribeStacksRequest]
@@ -149,7 +148,11 @@
       (wait-for-stack-update client stack-name)
       (wait-for-stack-create client stack-name))
     (println "Stack is ready!")
-    (clojure.pprint/pprint (-> (describe-stacks client stack-name)
-                               (.getStacks)
-                               (first)
-                               (.getOutputs)))))
+    (-> (describe-stacks client stack-name)
+        (.getStacks)
+        (first)
+        (.getOutputs)
+        ((fn [outputs]
+          (doseq [x outputs]
+            (println (.getDescription x) ":")
+            (println (.getOutputValue x))))))))
