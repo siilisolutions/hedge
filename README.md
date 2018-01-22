@@ -138,7 +138,7 @@ To create your function app with consumption plan (Windows Server backed serverl
 
 To compile and deploy your function to Azure:
 
-    boot hedge-azure -a NameOfFunctionApp -r NameOfResourceGroup
+    boot deploy-azure -a NameOfFunctionApp -r NameOfResourceGroup
 
 If your authentication file is correctly generated and found in the environment, your function should deploy to Azure and can be reached with HTTP. 
 
@@ -148,10 +148,10 @@ To be written
 
 ### Other Usage Examples
 
- # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
- boot hedge-azure -a functionapp -r resourcegroup target
+    # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
+    boot deploy-azure -a functionapp -r resourcegroup target
  
- # Persist the compiled output without deploy
- boot deploy-to-target
+    # Persist the compiled output without deploy
+    boot deploy-to-target
  
  
