@@ -35,6 +35,7 @@ Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/lega
 1. Testing
 1. Deploying to Azure
 1. Deploying to AWS   
+1. Other Usage Examples
 
 ### Forewords
 
@@ -43,9 +44,9 @@ This document gets you started writing and deploying serverless functions to dif
 ### Preparations and Required Software
 
 * Java JDK 8 - Boot runs on JVM
-* [CLJ-Boot](https://github.com/boot-clj/boot) - Required to build ClojureScript projects and use Hedge
+* [Boot-CLJ](https://github.com/boot-clj/boot) - Required to build ClojureScript projects and use Hedge
 * [Node.js](https://nodejs.org/en/download/) - Required for running unit tests
-* [AZ CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest) - Can be used when creating Service Principal for Azure and managing Azure resources
+* [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest) - Can be used when creating Service Principal for Azure and managing Azure resources
 
 ### How Hedge Works
 
@@ -53,9 +54,9 @@ ClojureScript is compiled and optimized into JavaScript than can be run on Node.
 
 ### Preparing Hedge Authentication Against Azure
 
-Requirements: You must be subscription owner to be able to create service principals, or ask a subscription owner to generate the principal for you. This document describes how you can create service principal with AZ CLI from the command line.
+Requirements: You must be subscription owner to be able to create service principals, or ask a subscription owner to generate the principal for you. This document describes how you can create service principal with Azure CLI from the command line.
 
-If you haven't already performed log in with AZ CLI, type
+If you haven't already performed log in with Azure CLI, type
 
     az cli
 
@@ -84,7 +85,7 @@ to be written
 ### Supported Handler Types
 
 Currently supported handler types are :
-* HTTP IN - HTTP OUT Handler (HTTP in trigger) 
+* HTTP Request In - HTTP Response Out Handler (Function triggered by incoming HTTP request) 
 
 Other handler types are planned.
 
@@ -115,23 +116,23 @@ To run unit tests when files change in your project (watch project)
 
 ### Deploying To Azure
 
-To deploy, Hedge requires that you create your Resource Group. Hedge can create a Storage Account and Function App for you, but we recommend that you create these by your self sp that you can choose where you host your serverless function code. One Function App can contain multiple serverless functions. 
+To deploy, Hedge requires that you create your Resource Group. Hedge can create a Storage Account and Function App for you, but we recommend that you create these by your self so that you can choose where you host your serverless function code. One Function App can contain multiple serverless functions. 
 
 When you create these by your self you can choose location of data center, storage options and service plan. 
 
 Storage account is required to store your function code and logs that your functions create and other settings.
 
-You can do it from the [Azure Portal](https://portal.azure.com) or use the CLI. 
+You can do it from the [Azure Portal](https://portal.azure.com) or use Azure CLI (Instructions below). 
 
 Example create the Resource Group in northeurope data center:
 
     az group create --name NameOfResourceGroup --location northeurope
 
-To create your storage account with cheapest storage option in north europe:
+To create your storage account with simplest storage option in north europe:
 
     az storage account create --name NameOfStorageAccount --location northeurope --resource-group NameOfResourceGroup --sku Standard_LRS
 
-To create your function app with consumption plan (windows backed serverless runtime with dynamic resource scaling):
+To create your function app with consumption plan (Windows Server backed serverless runtime with dynamic resource scaling, no dedicated VM):
 
     az functionapp create --name NameOfFunctionApp --storage-account NameOfStorageAccount --resource-group NameOfResourceGroup --consumption-plan-location northeurope
 
@@ -144,3 +145,13 @@ If your authentication file is correctly generated and found in the environment,
 ### Deploying To AWS
 
 To be written
+
+### Other Usage Examples
+
+ # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
+ boot hedge-azure -a functionapp -r resourcegroup target
+ 
+ # Persist the compiled output without deploy
+ boot deploy-to-target
+ 
+ 
