@@ -26,9 +26,22 @@
         print-and-return
         (generate-files fs))))
 
+(defn fail-if-false
+  [values]
+  (some (fn [val]
+          (if (nil? (:val val))
+            (util/exit-error (util/fail "\n%s\n" (:msg val)))
+            nil))
+        values))
+
 (defn azure
   ([]
-   (azure  (file ( System/getenv "AZURE_AUTH_LOCATION"))))
+   (let [file-location (System/getenv "AZURE_AUTH_LOCATION")
+         auth-file (if (and file-location (-> (clojure.java.io/as-file file-location) .exists))
+                     (file file-location) nil)]
+     (fail-if-false `({:val ~file-location :msg "AZURE_AUTH_LOCATION environment variable has to be set\n"}
+                      {:val ~auth-file :msg ~(format "AZURE_AUTH_LOCATION \"%s\" is not a file\n" file-location)}))
+     (azure auth-file)))
   ([cred-file]
    (->
     (Azure/configure)
@@ -177,13 +190,13 @@
    r rg-name RGN str "the resource group name"
    f function FUNCTION str "Function to deploy"
    O optimizations LEVEL kw "The optimization level."]
+  (fail-if-false `({:val ~app-name :msg "Function app name (-a) required"}
+                   {:val ~rg-name :msg "Resource group name (-r) required"}))
   (when function (c/set-env! :function-to-build function))
-  (if (or (nil? app-name) (nil? rg-name))
-    (throw (Exception. "Missing function app or resource group name"))
-    (comp
-     (compile-function-app :optimizations (or optimizations :advanced))
-     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-     (deploy-to-azure :app-name app-name :rg-name rg-name))))
+  (comp
+   (compile-function-app :optimizations (or optimizations :advanced))
+   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+   (deploy-to-azure :app-name app-name :rg-name rg-name)))
 
 (c/deftask hedge-azure
   "(Deprecated: use deploy-azure) Build and deploy function app(s)"
