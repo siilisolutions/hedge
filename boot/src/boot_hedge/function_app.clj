@@ -3,13 +3,8 @@
    [boot.core          :as c]
    [boot.util          :as util]
    [clojure.string :as str]
-   [cheshire.core :refer [generate-stream]]
-   [boot.filesystem :as fs]))
-
-
-(defn print-and-return [s]
-  (clojure.pprint/pprint s)
-  s)
+   [boot.filesystem :as fs]
+   [boot-hedge.common.core :refer [serialize-json]]))
 
 (defn read-conf [fileset]
   (->> fileset
@@ -18,8 +13,7 @@
        first
        c/tmp-file
        slurp
-       clojure.edn/read-string
-       print-and-return))
+       clojure.edn/read-string))
 
 (defn ns-file [ns]
   (-> (name ns)
@@ -80,9 +74,6 @@
     {:type "http", :direction "out", :name "$return"}],
    :disabled false})
 
-(defn serialize-json [f d]
-  (generate-stream d (clojure.java.io/writer f)))
-
 (defn generate-function-json [{:keys [fs cloud-name]} path {:keys [authorization] :or {authorization :anonymous}}]
   (let [tgt (c/tmp-dir!)
         func-dir (clojure.java.io/file tgt cloud-name)]
@@ -106,6 +97,6 @@
     (generate-function-json path func)))
 
 (defn generate-files [{:keys [api]} fs]
-  (if (= (c/get-env :function-to-build) :all)
-    (reduce generate-function fs api)
-    (reduce generate-function fs (select-keys api [(c/get-env :function-to-build)]))))
+  (if (c/get-env :function-to-build)
+    (reduce generate-function fs (select-keys api [(c/get-env :function-to-build)]))
+    (reduce generate-function fs api)))
