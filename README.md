@@ -164,14 +164,17 @@ To compile and deploy your project to AWS:
 
     boot deploy-aws -n <STACK_NAME>
 
-Command checks that STACK_NAME name is free. If it is free project
+Command checks that `STACK_NAME` name is free. If it is free project
 is deployed into Cloudformation stack with given name. If name
 is reserved error message is shown. After build and deployment steps command print API endpoint base URL.
 
 Visible HTTP endpoints of the project are in base URL.
 
-### Other Usage Examples
+Technical note: command check if S3 bucket with name
+`hedge-<STACK_NAME>` is free. This might be changed
+in the future.
 
+### Other Usage Examples
 
     # Get information about the Azure Publishing Profile
     boot azure-publish-profile -a functionapp -r resourcegroup
