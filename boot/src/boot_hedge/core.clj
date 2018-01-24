@@ -8,7 +8,7 @@
    [clojure.string :refer [split]]
    [clojure.java.io :refer [file input-stream]]
    [boot-hedge.function-app :refer [read-conf generate-files]]
-   [boot-hedge.common.core :refer [print-and-return]])
+   [boot-hedge.common.core :refer [print-and-return fail-if-false]])
   (:import [com.microsoft.azure.management Azure]
            [com.microsoft.rest LogLevel]
            [com.microsoft.azure.management.resources.fluentcore.arm Region]
@@ -16,6 +16,12 @@
            [org.apache.commons.net.ftp FTPClient FTP]))
 
 
+
+(def param-missing-msg ; define the common failure messages for missing params
+  {:app-name "Function app name (-a) required"
+   :rg-name "Resource group name (-r) required"
+   :azure-filename "AZURE_AUTH_LOCATION environment variable is required to point to Azure principal file"
+   :azure-file "Azure credential file \"%s\" does not exist"})
 
 (c/deftask ^:private function-app
   "Generates fileset for cljs and deployment files from hedge.edn"
@@ -27,29 +33,14 @@
         (generate-files fs))))
 
 (defn azure
-  ([]
-   (azure  (file ( System/getenv "AZURE_AUTH_LOCATION"))))
-  ([cred-file]
-   (->
-    (Azure/configure)
-    (.withLogLevel LogLevel/NONE)
-    (.authenticate cred-file)
-    (.withDefaultSubscription))))
+  [cred-file]
+  (->
+   (Azure/configure)
+   (.withLogLevel LogLevel/NONE)
+   (.authenticate cred-file)
+   (.withDefaultSubscription)))
 
 (defn appname [b] (SdkContext/randomResourceName b, 20))
-
-(c/deftask create-function-app
-  "Creates given function app"
-  [a app-name APP str "the app name"
-   r rg-name RGN str "the resource group name"]
-  (-> (azure)
-      .appServices
-      .functionApps
-      (.define app-name)
-      (.withRegion Region/EUROPE_NORTH)
-      (.withNewResourceGroup rg-name)
-      .create))
-
 
 (defn split-path [path]
   (if (.contains path "/")
@@ -98,8 +89,8 @@
     (util/info (.getReplyString ftp-client))
     (.disconnect ftp-client)))
 
-(defn publishing-profile [resource-group function]
-  (let [faps (-> (azure)
+(defn publishing-profile [resource-group function credential-file]
+  (let [faps (-> (azure (file credential-file))
                 .appServices
                 .functionApps)
         pbo   (-> faps
@@ -110,19 +101,63 @@
            :username (.ftpUsername pbo)
            :password (.ftpPassword pbo)}}))
 
+(defn check-parameters
+  "Check the command line parameters and fail if mandatory ones are missing.
+  Error messages are read from `param-missing-msg`."
+  [parameters]
+  (let [checks (map (fn ([[kw [value str-param]]]
+                         {:val value
+                          :msg (format (kw param-missing-msg) str-param)}))
+                    parameters)]
+    (fail-if-false checks)))
+
+(defmacro param
+  "Create input parameter for check-parameters."
+  ([kw] {(keyword kw) [kw nil]})
+  ([kw str-param] {(keyword kw) [kw str-param]}))
+
+(defn get-and-check-azure-credential-filename []
+ (let [azure-filename (System/getenv "AZURE_AUTH_LOCATION")
+       azure-file (if (and azure-filename
+                           (-> (clojure.java.io/as-file azure-filename) .exists))
+                   (file azure-filename) nil)]
+   (check-parameters (conj (param azure-filename)
+                           (param azure-file azure-filename)))
+   azure-filename))
+
+
+;; Task definitons follow
+
+(c/deftask create-function-app
+  "Creates given function app"
+  [a app-name APP str "the app name"
+   r rg-name RGN str "the resource group name"]
+  (check-parameters (conj (param app-name) (param rg-name)))
+  (let [credential-filename (get-and-check-azure-credential-filename)]
+    (-> (azure)
+        .appServices
+        .functionApps
+        (.define app-name)
+        (.withRegion Region/EUROPE_NORTH)
+        (.withNewResourceGroup rg-name)
+        .create)))
 
 (c/deftask azure-publish-profile
   "Shows details of publishing profile"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
-  (util/info (prn-str (publishing-profile rg-name app-name))))
+  (check-parameters (conj (param app-name) (param rg-name)))
+  (util/info (prn-str (publishing-profile
+                       rg-name app-name (get-and-check-azure-credential-filename)))))
 
 (c/deftask ^:private deploy-to-azure
   "Deploy fileset to Azure"
   [a app-name APP str "the app name"
-   r rg-name RGN str "the resource group name"]
+   r rg-name RGN str "the resource group name"
+   p az-principal PRINCIPAL str "path to the azure principal file"]
+  (check-parameters (conj (param app-name) (param rg-name)))
   (c/with-pass-thru [fs]
-    (let [pprofile (publishing-profile rg-name app-name)
+    (let [pprofile (publishing-profile rg-name app-name az-principal)
           ftp-profile (:ftp pprofile)]
       (doseq [{:keys [dir path] :as fi} (vals (:tree (c/output-fileset fs)))
               :let [f (.toFile (.resolve (.toPath dir) path))]]
@@ -165,10 +200,12 @@
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
    d directory DIR str "Directory to deploy from"]
-  (comp
-   (read-files :directory directory)
-   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-   (deploy-to-azure :app-name app-name :rg-name rg-name)))
+  (check-parameters (conj (param app-name) (param rg-name)))
+  (let [credential-filename (get-and-check-azure-credential-filename)]
+    (comp
+     (read-files :directory directory)
+     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+     (deploy-to-azure :app-name app-name :rg-name rg-name :az-principal credential-filename))))
 
 ; FIXME: check env. variables for deployment
 (c/deftask deploy-azure
@@ -177,13 +214,13 @@
    r rg-name RGN str "the resource group name"
    f function FUNCTION str "Function to deploy"
    O optimizations LEVEL kw "The optimization level."]
-  (when function (c/set-env! :function-to-build function))
-  (if (or (nil? app-name) (nil? rg-name))
-    (throw (Exception. "Missing function app or resource group name"))
+  (check-parameters (conj (param app-name) (param rg-name)))
+  (let [credential-filename (get-and-check-azure-credential-filename)]
+    (when function (c/set-env! :function-to-build function))
     (comp
      (compile-function-app :optimizations (or optimizations :advanced))
      (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-     (deploy-to-azure :app-name app-name :rg-name rg-name))))
+     (deploy-to-azure :app-name app-name :rg-name rg-name :az-principal credential-filename))))
 
 (c/deftask hedge-azure
   "(Deprecated: use deploy-azure) Build and deploy function app(s)"
@@ -191,6 +228,7 @@
    r rg-name RGN str "the resource group name"
    f function FUNCTION str "Function to deploy"
    O optimizations LEVEL kw "The optimization level."]
+  (check-parameters (conj (param app-name) (param rg-name)))
   (deploy-azure :app-name app-name
                 :rg-name rg-name
                 :function function
