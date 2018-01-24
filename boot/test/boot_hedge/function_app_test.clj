@@ -1,6 +1,6 @@
 (ns boot-hedge.function-app-test
     (:require [clojure.test :refer :all]
-              [boot-hedge.function-app :refer :all]))
+              [boot-hedge.azure.function-app :refer :all]))
   
 (deftest function-json-test
   (testing "symbol representing the function is normalized to URL compatible form"
