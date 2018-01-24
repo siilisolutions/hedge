@@ -201,10 +201,11 @@
    r rg-name RGN str "the resource group name"
    d directory DIR str "Directory to deploy from"]
   (check-parameters (conj (param app-name) (param rg-name)))
-  (comp
-   (read-files :directory directory)
-   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-   (deploy-to-azure :app-name app-name :rg-name rg-name)))
+  (let [credential-filename (get-and-check-azure-credential-filename)]
+    (comp
+     (read-files :directory directory)
+     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+     (deploy-to-azure :app-name app-name :rg-name rg-name :az-principal credential-filename))))
 
 ; FIXME: check env. variables for deployment
 (c/deftask deploy-azure
@@ -219,7 +220,7 @@
     (comp
      (compile-function-app :optimizations (or optimizations :advanced))
      (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-     (deploy-to-azure :app-name app-name :rg-name rg-name credential-filename))))
+     (deploy-to-azure :app-name app-name :rg-name rg-name :az-principal credential-filename))))
 
 (c/deftask hedge-azure
   "(Deprecated: use deploy-azure) Build and deploy function app(s)"
