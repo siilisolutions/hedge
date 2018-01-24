@@ -11,6 +11,7 @@ env:
   - SUB_PROJECT=library
   - SUB_PROJECT=boot
   - SUB_PROJECT=acceptance
+  - BOOT_WATCHERS_DISABLE=yes
 jdk:
   - oraclejdk8
 cache:
