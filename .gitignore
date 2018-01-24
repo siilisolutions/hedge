@@ -11,5 +11,6 @@ pom.xml
 .lein-repl-history
 .nrepl-history
 .nrepl-port
+*.diff
 *.swp
 .cljs_node_repl/
