@@ -17,6 +17,7 @@ Hedge is a platform agnostic ClojureScript framework for deploying ring compatib
 ## Supported Platforms
 
 ### [Azure Functions](https://azure.microsoft.com/en-us/services/functions/)
+### [AWS Lambda](https://aws.amazon.com/lambda/)
 
 ## License
 
@@ -57,9 +58,9 @@ ClojureScript is compiled and optimized into JavaScript than can be run on Node.
 
 Requirements: You must be subscription owner to be able to create service principals, or ask a subscription owner to generate the principal for you. This document describes how you can create service principal with Azure CLI from the command line.
 
-If you haven't already performed log in with Azure CLI, type
+If you haven't already performed log in with Azure CLI, do it and follow on-screen instructions.
 
-    az cli
+    az login
 
 Make sure you are using correct subscription
 
