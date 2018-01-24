@@ -30,7 +30,7 @@ Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/lega
 1. Preparations and Required Software
 1. How Hedge Works
 1. Preparing Hedge Authentication Against Azure
-1. Authentication for AWS (tba)
+1. Authentication for AWS
 1. Supported Handler Types
 1. Basic Serverless Function Project Structure
 1. Testing
@@ -108,7 +108,9 @@ Other handler types are planned.
 
 ### Basic Serverless Project Structure
 
-A basic structure can be found in one of the examples in the **(Example TBA)** folder.
+A basic structure can be found in one of the examples in [AWS example](https://github.com/jikuja/hedge-example-aws) or [Azure example](https://github.com/jikuja/hedge-example-azure) repositories.
+
+Note: Example directories might be merged to master repo at some point.
 
 * src/ - This directory contains your CLJS source files
 * target/ - Optionally persisted compiled output directory
@@ -118,6 +120,9 @@ A basic structure can be found in one of the examples in the **(Example TBA)** f
 * build.boot - Your build configuration file
 * package.json - Optionally, if you use external Node modules
 * node_modules - Optionally, if you have installed Node modules
+
+Note: Current implementation of Hedge requires to select target cloud in `build.boot` file.
+Refer example repositories for more info. This feature will be changed later.
 
 ### Testing
 
