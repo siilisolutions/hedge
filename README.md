@@ -193,3 +193,7 @@ in the future.
 
     # Deploy compiled artifacts from target directory (index.js and function.json)
     boot deploy-azure-from-directory -a functionapp -r resourcegroup -d <directory>
+
+    # Get more help of task, i.e. commandline options
+    boot <task-name> -h
+
