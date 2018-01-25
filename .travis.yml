@@ -8,10 +8,9 @@ install:
   - curl -L https://github.com/boot-clj/boot-bin/releases/download/2.7.2/boot.sh -o ~/bin/boot
   - chmod +x ~/bin/boot
 env:
-  - SUB_PROJECT=library
-  - SUB_PROJECT=boot
-  - SUB_PROJECT=acceptance
-  - BOOT_WATCHERS_DISABLE=yes
+  - SUB_PROJECT=library BOOT_WATCHERS_DISABLE=yes
+  - SUB_PROJECT=boot BOOT_WATCHERS_DISABLE=yes
+  - SUB_PROJECT=acceptance BOOT_WATCHERS_DISABLE=yes
 jdk:
   - oraclejdk8
 cache:
