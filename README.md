@@ -188,11 +188,12 @@ in the future.
     # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
     boot deploy-azure -a functionapp -r resourcegroup target
 
-    # Persist the compiled output to target/ without deploy
-    boot deploy-to-target
-
-    # Persist the compiled output to <directory>
+    # Persist the compiled output. Given no options, defaults to Optimizations=simple and directory=target
     boot deploy-to-directory -O <optimization level> -f <function name> -d <directory>
 
     # Deploy compiled artifacts from target directory (index.js and function.json)
     boot deploy-azure-from-directory -a functionapp -r resourcegroup -d <directory>
+
+    # Get more help of task, i.e. commandline options
+    boot <task-name> -h
+

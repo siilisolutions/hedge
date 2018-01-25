@@ -1,4 +1,4 @@
-(ns boot-hedge.core
+(ns boot-hedge.azure.core
   {:boot/export-tasks true}
   (:require
    [boot.core          :as c]
@@ -7,7 +7,7 @@
    [adzerk.boot-cljs :refer [cljs]] 
    [clojure.string :refer [split]]
    [clojure.java.io :refer [file input-stream]]
-   [boot-hedge.function-app :refer [read-conf generate-files]]
+   [boot-hedge.azure.function-app :refer [read-conf generate-files]]
    [boot-hedge.common.core :refer [print-and-return]])
   (:import [com.microsoft.azure.management Azure]
            [com.microsoft.rest LogLevel]

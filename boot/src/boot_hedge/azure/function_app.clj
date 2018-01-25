@@ -1,4 +1,4 @@
-(ns boot-hedge.function-app
+(ns boot-hedge.azure.function-app
   (:require
    [boot.core          :as c]
    [boot.util          :as util]
