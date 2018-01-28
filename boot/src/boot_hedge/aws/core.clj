@@ -21,20 +21,20 @@
         (generate-files fs))))
 
 (c/deftask ^:private upload-artefact
-  [n stack-name STACK str "Name of the stack"
-   v deploy-version VERSION str "Version of S3 deployment file"]
+  [n stack-name STACK_NAME str "Stack name"]
   (c/with-pass-thru [fs]
     (let [client (s3-api/client)
           bucket (str "hedge-" stack-name "-deploy")
           artefact (->> fs
                         (c/input-files)
-                        (c/by-name #{"functions.zip"})
+                        (c/by-re #{#"functions-[0-9]*.zip"})
                         (first)
-                        (c/tmp-file))]
+                        (c/tmp-file))
+          name (.getName artefact)]
       (u/info (str "Ensuring bucket " bucket " exists\n"))
       (s3-api/ensure-bucket client bucket)
-      (u/info (str "Uploading functions-" deploy-version ".zip into bucket\n"))
-      (s3-api/put-object client bucket (str "functions-" deploy-version ".zip") artefact))))
+      (u/info (str "Uploading " name " into bucket " bucket "\n"))
+      (s3-api/put-object client bucket name artefact))))
 
 (c/deftask ^:private deploy-stack
   [n stack-name STACK str "Name of the stack"]
@@ -44,21 +44,25 @@
                        (c/input-files)
                        (c/by-name #{"cloudformation.json"})
                        (first)
-                       (c/tmp-file))]
+                       (c/tmp-file))
+          artefact (->> fs
+                        (c/input-files)
+                        (c/by-re #{#"functions-[0-9]*.zip"})
+                        (first)
+                        (c/tmp-file))
+          bucket (str "hedge-" stack-name "-deploy")
+          key (.getName artefact)]
       (u/info "Deploying to AWS\n")
-      (cf-api/deploy-stack client stack-name cf-file))))
+      (cf-api/deploy-stack client stack-name cf-file bucket key))))
 
 (c/deftask ^:private deploy-to-aws
   "Deploy fileset to Azure"
-  [n stack-name STACK str "Name of the stack"
-   v deploy-version VERSION str "Version of S3 deployment file"]
+  [n stack-name STACK str "Name of the stack"]
   (comp
-   (zip :file "functions.zip")
-   ; zip creates artefact we upload!
-   (upload-artefact :stack-name stack-name :deploy-version deploy-version)
+   (upload-artefact :stack-name stack-name)
    (deploy-stack :stack-name stack-name)))
 
-(c/deftask ^:private compile-function-app
+(c/deftask build
   "Build function app(s)"
   [O optimizations LEVEL kw "The optimization level."]
   (c/task-options!
@@ -68,17 +72,22 @@
    (cljs :optimizations optimizations)))
 
 (c/deftask create-template
-  [n stack-name STACK str "Name of the stack"
-   v deploy-version VERSION str "Version of S3 deployment file"]
+  []
   (c/with-pre-wrap fs
     (-> fs
         (read-conf)
-        (cf/create-template fs stack-name deploy-version))))
+        (cf/create-template fs))))
 
-; FIXME: 
-; * if optimizations :none inject :main option (is it even possible)
-; * read :compiler-options from command line and merge with current config
-; * rename task later if deployment target for different cloud types is resolved
+(c/deftask create-artefacts
+  "Create artefacts"
+  [O optimizations LEVEL kw "The optimization level"]
+  (let [zipfile (str "functions-" (date->unixts (now)) ".zip")]
+    (comp
+      (build :optimizations (or optimizations :simple))
+      (create-template)
+      (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+      (zip :file zipfile))))
+
 (c/deftask deploy-to-directory
   "Build lambda(s) and store output to target"
   [O optimizations LEVEL kw "The optimization level"
@@ -87,11 +96,10 @@
   (when function (do (c/set-env! :function-to-build function)
                    (u/warn "Note: output of this task when using -f flag is not compatible with deploy-from-directory task")))
   (comp
-    (compile-function-app :optimizations (or optimizations :simple))
-    (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+    (create-artefacts :optimizations optimizations)
     (target :dir #{(or directory "target")})))
 
-(c/deftask ^:private read-files
+(c/deftask read-files
   "Read files from target directory into task fileset"
   [d directory DIR str "Directory to read from"]
   (c/with-pre-wrap fs
@@ -103,18 +111,14 @@
    d directory DIR str "Directory to deploy from"]
   (comp
    (read-files :directory directory)
-   (create-template :stack-name stack-name :deploy-version (str (date->unixts (now))))
-   (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-   (deploy-to-aws :stack-name stack-name :deploy-version (str (date->unixts (now))))))
+   (deploy-to-aws :stack-name stack-name)))
 
-(c/deftask deploy-aws
+(c/deftask deploy
   "Build and deploy function app(s)"
   [n stack-name STACK str "Name of the stack"
    O optimizations LEVEL kw "The optimization level."]
   (if (nil? stack-name)
     (throw (Exception. "Missing stack name"))
     (comp
-     (compile-function-app :optimizations (or optimizations :advanced))
-     (create-template :stack-name stack-name :deploy-version (str (date->unixts (now))))
-     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-     (deploy-to-aws :stack-name stack-name :deploy-version (str (date->unixts (now)))))))
+     (create-artefacts :optimizations optimizations)
+     (deploy-to-aws :stack-name stack-name))))
