@@ -3,8 +3,15 @@
 
 (def SUPPORTED_CLOUDS [:aws :azure])
 
-(c/deftask hedge-help "Placeholder task, please run init! to import Hedge tasks" []
-  (println "TODO: add some message here"))
+(c/deftask hedge-help
+  "WARNING: run this task to get more info" []
+  (println "Check example projects to find out how to import Hedge tasks")
+  identity)
+
+(c/deftask help
+  "Displays some help"
+  []
+  (println "Tasks marked with ** are main tasks for end-users"))
 
 (defn init! [& {:keys [clouds]
                 :or {clouds SUPPORTED_CLOUDS}}]

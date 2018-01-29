@@ -21,6 +21,7 @@
         (generate-files fs))))
 
 (c/deftask ^:private upload-artefact
+  "Uploads functions-*.zip to S3"
   [n stack-name STACK_NAME str "Stack name"]
   (c/with-pass-thru [fs]
     (let [client (s3-api/client)
@@ -37,6 +38,7 @@
       (s3-api/put-object client bucket name artefact))))
 
 (c/deftask ^:private deploy-stack
+  "Deploys stack to AWS using Cloudformation template and functions-*.zip in S3"
   [n stack-name STACK str "Name of the stack"]
   (c/with-pass-thru [fs]
     (let [client (cf-api/client)
@@ -55,15 +57,15 @@
       (u/info "Deploying to AWS\n")
       (cf-api/deploy-stack client stack-name cf-file bucket key))))
 
-(c/deftask ^:private deploy-to-aws
-  "Deploy fileset to Azure"
+(c/deftask upload-and-deploy
+  "Uploads functions-*.zip and deploys using Cloudformation"
   [n stack-name STACK str "Name of the stack"]
   (comp
    (upload-artefact :stack-name stack-name)
    (deploy-stack :stack-name stack-name)))
 
 (c/deftask build
-  "Build function app(s)"
+  "Build lambda(s)"
   [O optimizations LEVEL kw "The optimization level."]
   (c/task-options!
    cljs #(assoc-in % [:compiler-options :target] :nodejs))
@@ -72,6 +74,7 @@
    (cljs :optimizations optimizations)))
 
 (c/deftask create-template
+  "Creates Cloudformation template from hedge.edn"
   []
   (c/with-pre-wrap fs
     (let [tmp (c/tmp-dir!)
@@ -82,25 +85,20 @@
       (-> fs (c/add-resource tmp) c/commit!))))
 
 (c/deftask create-artefacts
-  "Create artefacts"
-  [O optimizations LEVEL kw "The optimization level"]
+  "Creates artefacts"
+  []
   (let [zipfile (str "functions-" (date->unixts (now)) ".zip")]
     (comp
-      (build :optimizations (or optimizations :simple))
       (create-template)
       (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
       (zip :file zipfile))))
 
-(c/deftask deploy-to-directory
-  "Build lambda(s) and store output to target"
-  [O optimizations LEVEL kw "The optimization level"
-   f function FUNCTION str "Function to compile"
-   d directory DIR str "Directory to deploy into"]
-  (when function (do (c/set-env! :function-to-build function)
-                   (u/warn "Note: output of this task when using -f flag is not compatible with deploy-from-directory task")))
+(c/deftask build-and-create-artefacts
+  "Build lambdas and create artefacts"
+  [O optimizations LEVEL kw "The optimization level"]
   (comp
-    (create-artefacts :optimizations optimizations)
-    (target :dir #{(or directory "target")})))
+    (build :optimizations (or optimizations :simple))
+    (create-artefacts)))
 
 (c/deftask read-files
   "Read files from target directory into task fileset"
@@ -108,20 +106,50 @@
   (c/with-pre-wrap fs
     (c/commit! (c/add-resource fs (file (or directory "target"))))))
 
+; main tasks
+(c/deftask deploy-to-directory
+  "** Builds lambda(s), creates arteficts and stores output to target
+
+  Stores artefacts to given directory to to target directory if argument is missing.
+
+  Note: -f is currently for debugging only and it will create artifacts which are
+  not compatible with deployment commands."
+
+  [O optimizations LEVEL kw "The optimization level (optional)"
+   f function FUNCTION str "Function to compile (optional)"
+   d directory DIR str "Directory to deploy into (optional)"]
+  (when function (do (c/set-env! :function-to-build function)
+                   (u/warn "Note: output of this task when using -f flag is not compatible with deploy-from-directory task")))
+  (comp
+    (create-artefacts :optimizations optimizations)
+    (target :dir #{(or directory "target")})))
+
 (c/deftask deploy-from-directory
-  "Deploy files from target directory."
+  "** Deploy files from directory. **
+
+  Deploys files from given directory or target if command line
+  argument is missing. It is recommended to use deploy-to-directory
+  command to create directory with artifacts.
+
+  Name of the stack is required arguments."
   [n stack-name STACK str "Name of the stack"
-   d directory DIR str "Directory to deploy from"]
+   d directory DIR str "Directory to deploy from (optional)"]
   (comp
    (read-files :directory directory)
-   (deploy-to-aws :stack-name stack-name)))
+   (upload-and-deploy :stack-name stack-name)))
 
 (c/deftask deploy
-  "Build and deploy function app(s)"
+  "** Build and deploy function app(s) **
+
+  Build, creates artifacts and deploys with one command.
+
+  Name of the stack of required argument and recommended optimization levels
+  are :advanced and :simple."
+
   [n stack-name STACK str "Name of the stack"
-   O optimizations LEVEL kw "The optimization level."]
+   O optimizations LEVEL kw "The optimization level (optional)"]
   (if (nil? stack-name)
     (throw (Exception. "Missing stack name"))
     (comp
      (create-artefacts :optimizations optimizations)
-     (deploy-to-aws :stack-name stack-name))))
+     (upload-and-deploy :stack-name stack-name))))
