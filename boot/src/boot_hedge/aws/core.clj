@@ -12,7 +12,7 @@
    [boot-hedge.aws.cloudformation :as cf]
    [boot-hedge.aws.s3-api :as s3-api]))
 
-(c/deftask ^:private function-app
+(c/deftask ^:private prepare-lambdas
   []
   (c/with-pre-wrap fs
     (-> fs
@@ -68,15 +68,18 @@
   (c/task-options!
    cljs #(assoc-in % [:compiler-options :target] :nodejs))
   (comp
-   (function-app)
+   (prepare-lambdas)
    (cljs :optimizations optimizations)))
 
 (c/deftask create-template
   []
   (c/with-pre-wrap fs
-    (-> fs
-        (read-conf)
-        (cf/create-template fs))))
+    (let [tmp (c/tmp-dir!)
+          tmp-file (clojure.java.io/file tmp "cloudformation.json")]
+      (-> fs
+          (read-conf)
+          (cf/write-template-file tmp-file))
+      (-> fs (c/add-resource tmp) c/commit!))))
 
 (c/deftask create-artefacts
   "Create artefacts"
