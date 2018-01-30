@@ -2,8 +2,10 @@
   (:require [cljs.test :refer-macros [deftest is testing async]]
             [cljs.core.async :refer [chan put!]]
             [goog.object :as gobj]
-            [hedge.azure.function-app :refer [azure-function-wrapper azure->ring] :refer-macros [azure-function]]))
-      
+            [hedge.azure.function-app :refer [azure-function-wrapper azure->ring] :refer-macros [azure-function]]
+            [hedge.azure.common :refer [azure-context-logger-mock]]))
+
+
 
 (defn azure-ctx [done-fn]
   "Generate monkeypatched Azure context.
@@ -11,7 +13,7 @@
    Automatically converts between JS and CLJS
    where applicable to allow writing assertions in more idiomatic manner"
   #js {:done (fn [err result] (done-fn (js->clj result)))
-       :log  #(println (str "LOG :: " %))})
+       :log  azure-context-logger-mock})
 
 (def azure-req (clj->js {"headers" {"x-forwarded-for" "127.0.0.1:1234"
                                     "x-original-url"  "/api?query=params"
