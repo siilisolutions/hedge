@@ -151,5 +151,5 @@
   (if (nil? stack-name)
     (throw (Exception. "Missing stack name"))
     (comp
-     (create-artefacts :optimizations optimizations)
+     (build-and-create-artefacts :optimizations optimizations)
      (upload-and-deploy :stack-name stack-name))))
