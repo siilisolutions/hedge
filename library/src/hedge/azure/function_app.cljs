@@ -6,7 +6,12 @@
             [cljs.core.async :refer [<!]]
             [cljs.core.async.impl.protocols :refer [ReadPort]]
             [clojure.string :as str]
-            [clojure.walk :as w]))
+            [clojure.walk :as w]
+            [taoensso.timbre :as timbre
+                       :refer (log  trace  debug  info  warn  error  fatal  report
+                               logf tracef debugf infof warnf errorf fatalf reportf
+                               spy get-env log-env)]
+            [hedge.azure.timbre-appender :refer [timbre-appender]]))
 
 
 (defprotocol Codec
@@ -48,13 +53,13 @@
      :protocol        "HTTP/1.1"      ; TODO: figure out if this can ever be anything else
      :ssl-client-cert nil             ; TODO: we have the client cert string but not as Java type...
      :headers         headers
-     :body            (get r "body")  ; TODO: should use codec or smth probably to handle request body type
-  }))
+     :body            (get r "body")}))  ; TODO: should use codec or smth probably to handle request body type
+  
 
 
 (defn ring->azure [context codec]
   (fn [raw-resp]
-    #_(.log context (str "result: " raw-resp))
+    (trace (str "result: " raw-resp))
     (if (string? raw-resp)
       (.done context nil (clj->js {:body raw-resp}))
       (.done context nil (clj->js raw-resp)))))
@@ -65,13 +70,15 @@
   ([handler codec]
    (fn [context req]
      (try
+       (timbre/merge-config! {:appenders {:console nil}})
+       (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
        (let [ok     (ring->azure context codec)
              logfn (.-log context)
              result (handler (into (azure->ring req) {:log logfn}))]
 
-          #_(.log context (str "request: " (js->clj req)))
+          (trace (str "request: " (js->clj req)))
           (cond
-            (satisfies? ReadPort result) (do (.log context "Result is channel, content pending...")
+            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                            (go (ok (<! result))))
             (string? result)             (ok {:body result})
             :else                        (ok result)))

@@ -1,9 +1,16 @@
   (ns hedge.azure.function-app-test
-  (:require [cljs.test :refer-macros [deftest is testing async]]
+  (:require [cljs.test :refer-macros [deftest is testing async use-fixtures]]
             [cljs.core.async :refer [chan put!]]
             [goog.object :as gobj]
-            [hedge.azure.function-app :refer [azure-function-wrapper azure->ring] :refer-macros [azure-function]]))
-      
+            [taoensso.timbre :as timbre]
+            [hedge.azure.function-app :refer [azure-function-wrapper azure->ring] :refer-macros [azure-function]]
+            [hedge.azure.common :refer [azure-context-logger-mock]]))
+
+(def fixture-once
+  {:before (fn [] (timbre/merge-config! {:level :trace}))
+   :after (fn [] (timbre/merge-config! {:level :debug}))})
+
+(use-fixtures :once fixture-once)
 
 (defn azure-ctx [done-fn]
   "Generate monkeypatched Azure context.
@@ -11,7 +18,7 @@
    Automatically converts between JS and CLJS
    where applicable to allow writing assertions in more idiomatic manner"
   #js {:done (fn [err result] (done-fn (js->clj result)))
-       :log  #(println (str "LOG :: " %))})
+       :log  azure-context-logger-mock})
 
 (def azure-req (clj->js {"headers" {"x-forwarded-for" "127.0.0.1:1234"
                                     "x-original-url"  "/api?query=params"
