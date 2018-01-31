@@ -67,12 +67,33 @@
     (ftp-info client)
     result))
 
-(defn upload-file [{:keys [url username password] :as ftp} file-path file-stream]
+(defn upload-files [ftp-client fileset initial-dir]
+  (doseq [{:keys [dir path]} (vals (:tree (c/output-fileset fileset)))
+          :let [f (.toFile (.resolve (.toPath dir) path))]]
+    (util/info "uploading %s...\n" path dir)
+    (with-open [file-stream (input-stream f)]
+      (let [[local-path file-name ] (split-path path)
+            remote-path (str "site/wwwroot" local-path)]
+        (doseq [segment (seq (.split remote-path "/"))]
+          (util/info (str "moving to directory: " segment "\n"))
+          (when-not (change-and-report ftp-client segment)
+            (doto ftp-client 
+              (.makeDirectory segment)
+              (ftp-info)
+              (.changeWorkingDirectory segment)
+              (ftp-info))))
+        (util/info (str "storing file: " file-name " "))
+        (util/info "success: ")
+        (util/info (str (.storeFile ftp-client file-name file-stream)))
+        (util/info "\n")
+        (util/info (.getReplyString ftp-client))
+        (.changeWorkingDirectory ftp-client initial-dir)
+        (ftp-info ftp-client)))))
+
+(defn ftp-upload [{:keys [url username password] :as ftp} fileset]
   (let [ftp-client (FTPClient.)
         ftp-url-segments (split url #"/" 2)
-        server (first ftp-url-segments)
-        [local-path file-name ] (split-path file-path)
-        path  (str "site/wwwroot" local-path)]
+        server (first ftp-url-segments)]
     (util/info (str "connecting to server: " server "\n"))
     (doto ftp-client
       (.connect server)
@@ -82,21 +103,10 @@
       (.setFileType FTP/ASCII_FILE_TYPE)
       (ftp-info)
       (.enterLocalPassiveMode)
-      (ftp-info))
-    (doseq [segment (seq (.split path "/"))]
-      (util/info (str "moving to directory: " segment "\n"))
-      (when-not (change-and-report ftp-client segment)
-        (doto ftp-client 
-          (.makeDirectory segment)
-          (ftp-info)
-          (.changeWorkingDirectory segment)
-          (ftp-info))))
-    (util/info (str "storing file: " file-name " "))
-    (util/info "success: ")
-    (util/info (str (.storeFile ftp-client file-name file-stream)))
-    (util/info "\n")
-    (util/info (.getReplyString ftp-client))
-    (.disconnect ftp-client)))
+      (ftp-info)
+      (upload-files fileset (.printWorkingDirectory ftp-client))
+      (.disconnect))))
+
 
 (defn publishing-profile [resource-group function]
   (let [faps (-> (azure)
@@ -105,11 +115,10 @@
         pbo   (-> faps
                   (.getByResourceGroup resource-group function)
                   .getPublishingProfile)]
-   
+
     {:ftp {:url (.ftpUrl pbo)
            :username (.ftpUsername pbo)
            :password (.ftpPassword pbo)}}))
-
 
 (c/deftask azure-publish-profile
   "Shows details of publishing profile"
@@ -124,11 +133,7 @@
   (c/with-pass-thru [fs]
     (let [pprofile (publishing-profile rg-name app-name)
           ftp-profile (:ftp pprofile)]
-      (doseq [{:keys [dir path] :as fi} (vals (:tree (c/output-fileset fs)))
-              :let [f (.toFile (.resolve (.toPath dir) path))]]
-        (util/info "uploading %s...\n" path dir)
-        (with-open [in (input-stream f)]
-          (upload-file ftp-profile (str path) in))))))
+      (ftp-upload ftp-profile fs))))
 
 
 (c/deftask ^:private compile-function-app
