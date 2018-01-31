@@ -121,7 +121,7 @@
   (when function (do (c/set-env! :function-to-build function)
                    (u/warn "Note: output of this task when using -f flag is not compatible with deploy-from-directory task")))
   (comp
-    (create-artefacts :optimizations optimizations)
+    (build-and-create-artefacts :optimizations optimizations)
     (target :dir #{(or directory "target")})))
 
 (c/deftask deploy-from-directory
@@ -151,5 +151,5 @@
   (if (nil? stack-name)
     (throw (Exception. "Missing stack name"))
     (comp
-     (create-artefacts :optimizations optimizations)
+     (build-and-create-artefacts :optimizations optimizations)
      (upload-and-deploy :stack-name stack-name))))
