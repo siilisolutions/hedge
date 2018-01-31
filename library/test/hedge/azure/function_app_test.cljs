@@ -1,11 +1,16 @@
   (ns hedge.azure.function-app-test
-  (:require [cljs.test :refer-macros [deftest is testing async]]
+  (:require [cljs.test :refer-macros [deftest is testing async use-fixtures]]
             [cljs.core.async :refer [chan put!]]
             [goog.object :as gobj]
+            [taoensso.timbre :as timbre]
             [hedge.azure.function-app :refer [azure-function-wrapper azure->ring] :refer-macros [azure-function]]
             [hedge.azure.common :refer [azure-context-logger-mock]]))
 
+(def fixture-once
+  {:before (fn [] (timbre/merge-config! {:level :trace}))
+   :after (fn [] (timbre/merge-config! {:level :debug}))})
 
+(use-fixtures :once fixture-once)
 
 (defn azure-ctx [done-fn]
   "Generate monkeypatched Azure context.
