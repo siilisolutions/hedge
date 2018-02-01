@@ -78,11 +78,12 @@
      (try
        (timbre/merge-config! {:appenders {:console nil}})
        (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
+       (trace (str "request: " (js->clj req)))
        (let [ok     (ring->azure context codec)
              logfn (.-log context)
              result (handler (into (azure->ring req) {:log logfn}))]
 
-          (trace (str "request: " (js->clj req)))
+          
           (cond
             (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                            (go (ok (<! result))))
@@ -97,9 +98,11 @@
   ([handler codec]
     (fn [context timer]
       (try 
+        (timbre/merge-config! {:appenders {:console nil}})
+        (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
+        (trace (str "timer: " (js->clj timer)))
         (let [ok    #(.done context nil)
               logfn (.-log context)
               result (handler (into (azure->timer timer) {:log logfn}))]
-          #_(.log context (str "timer: " (js->clj timer)))
           (ok))
         (catch :default e (.done context e nil))))))
