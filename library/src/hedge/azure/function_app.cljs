@@ -51,6 +51,11 @@
      :body            (get r "body")  ; TODO: should use codec or smth probably to handle request body type
   }))
 
+(defn azure->timer
+  "Converts incoming timer trigger to Hedge timer handler"
+  [timer]
+  (let [timer (js->clj timer)]
+    {:trigger-time (str (get timer "next") \Z)}))   ; Azure times are UTC but timestamps miss TimeZone
 
 (defn ring->azure [context codec]
   (fn [raw-resp]
@@ -59,9 +64,10 @@
       (.done context nil (clj->js {:body raw-resp}))
       (.done context nil (clj->js raw-resp)))))
 
-(defn azure-function-wrapper
+(defn azure-api-function-wrapper
+  "wrapper used for http in / http out api function"
   ([handler]
-   (azure-function-wrapper handler nil))
+   (azure-api-function-wrapper handler nil))
   ([handler codec]
    (fn [context req]
      (try
@@ -76,3 +82,17 @@
             (string? result)             (ok {:body result})
             :else                        (ok result)))
        (catch :default e (.done context e nil))))))
+
+(defn azure-timer-function-wrapper
+  "wrapper used for timer-triggered function"
+  ([handler]
+    (azure-timer-function-wrapper handler nil))
+  ([handler codec]
+    (fn [context timer]
+      (try 
+        (let [ok    #(.done context nil)
+              logfn (.-log context)
+              result (handler (into (azure->timer timer) {:log logfn}))]
+          #_(.log context (str "timer: " (js->clj timer)))
+          (ok))
+        (catch :default e (.done context e nil))))))

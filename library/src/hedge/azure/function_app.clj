@@ -3,5 +3,8 @@
 
 
 
-(defmacro azure-function [f]
-  `(node-module1 (hedge.azure.function-app/azure-function-wrapper ~f)))
+(defmacro azure-api-function [f]
+  `(node-module1 (hedge.azure.function-app/azure-api-function-wrapper ~f)))
+
+(defmacro azure-timer-function [f]
+  `(node-module1 (hedge.azure.function-app/azure-timer-function-wrapper ~f)))
