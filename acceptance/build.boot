@@ -1,7 +1,7 @@
 (set-env!
   :source-paths #{"test"}
   :resource-paths  #{"spec"}
-  :dependencies '[[org.clojure/clojure "1.8.0"]
+  :dependencies '[[org.clojure/clojure "1.9.0"]
                   [camel-snake-kebab "0.4.0"]
                   [junit/junit "4.12"]
                   [org.concordion/concordion "2.1.0"]
