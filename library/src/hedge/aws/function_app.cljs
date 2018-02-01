@@ -86,9 +86,9 @@
   ([handler codec]
    (fn [event context callback]
      (try
+       (trace (str "request: " (js->clj event)))
        (let [ok     (ring->lambda callback codec)
              result (handler (lambda->ring event))]
-         (trace (str "request: " (js->clj event)))
          (cond
            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                             (go (ok (<! result))))
