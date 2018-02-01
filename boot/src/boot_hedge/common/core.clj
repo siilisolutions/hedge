@@ -31,3 +31,25 @@
     (dashed-alphanumeric (namespace handler))
     "__"
     (dashed-alphanumeric (name handler))))
+
+(defn ^:private ->handler
+  "Helper to create handler variables"
+  [key handler value]
+  {key {handler value}})
+
+(defn ^:private handler-config 
+  "Gets handler (given as string) config from hedge.edn, returns a map of type one-handler-config"
+  [handler edn-config]
+  (into {} 
+    (map 
+      (fn [key] (when-let [value (get (-> edn-config key) handler)] 
+                  (->handler key handler value))) 
+      (keys edn-config))))
+
+(defn one-handler-config 
+  "Returns a one-handler-cfg map"
+  [handler edn-config]
+  (let [cfg (handler-config handler edn-config)]
+  {:type (-> cfg keys first)
+   :path handler
+   :function (get (first (vals cfg)) handler)}))

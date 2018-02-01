@@ -2,6 +2,9 @@
   (:require [boot.core          :as c]))
 
 (def SUPPORTED_CLOUDS [:aws :azure])
+(def SUPPORTED_HANDLERS [:api :timer])
+(def AZURE_FUNCTION {:api 'azure-api-function
+                     :timer 'azure-timer-function})
 
 (c/deftask hedge-help
   "WARNING: run this task to get more info" []
