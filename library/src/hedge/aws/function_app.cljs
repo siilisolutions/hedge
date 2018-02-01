@@ -94,3 +94,29 @@
                                             (go (ok (<! result))))
             :else                       (ok result)))
        (catch :default e (callback e nil))))))
+
+(defn ->hedge-timer
+  "converts AWS specific timer payload to Hedge handler unified format"
+  [event]
+  (let [data (js->clj (.parse js/JSON event))]
+    {:trigger-time (get data "time")}))
+
+(defn ->aws-timer
+  [callback]
+  (fn [response]
+    (when (not (nil? response)) (warn (str "Response " + response + " not being sent anywhere")))
+    (callback)))
+
+(defn lambda-timer-function-wrapper
+  "wrapper for AWS timer events"
+  ([handler]
+   (fn [event context callback]
+     (try
+       (trace (str "request: " (js->clj event)))
+       (let [ok     (->aws-timer callback)
+             result (handler (->hedge-timer event))]
+         (cond
+           (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
+                                            (go (ok (<! result))))
+            :else                       (ok result)))
+       (catch :default e (callback e nil))))))

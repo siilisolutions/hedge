@@ -7,6 +7,8 @@
 (def SUPPORTED_HANDLERS [:api :timer])
 (def AZURE_FUNCTION {:api 'azure-api-function
                     :timer 'azure-timer-function})
+(def AWS_FUNCTIONS {:api 'lambda-apigw-function
+                    :timer 'lambda-timer-function})
 
 (defn print-and-return [s]
   (clojure.pprint/pprint s)
