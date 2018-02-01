@@ -4,7 +4,7 @@
    [boot.core          :as c]
    [boot.util          :as util]
    [boot.task.built-in :refer [sift target]]
-   [adzerk.boot-cljs :refer [cljs]] 
+   [adzerk.boot-cljs :refer [cljs]]
    [clojure.string :refer [split]]
    [clojure.java.io :refer [file input-stream]]
    [boot-hedge.azure.function-app :refer [read-conf generate-files]]
@@ -54,47 +54,64 @@
 (defn split-path [path]
   (if (.contains path "/")
     (let [lastslash (.lastIndexOf path "/")]
-      [(str "/" (.substring path 0 lastslash))
+      [(.substring path 0 lastslash)
        (.substring path (inc lastslash))])
     [path ""]))
 
 (defn ftp-info [client]
-  (util/info (.getReplyString client))
-  (util/info "\n"))
+  (util/info (.getReplyString client)))
 
 (defn change-and-report [client dir]
   (let [result (.changeWorkingDirectory client dir)]
     (ftp-info client)
     result))
 
-(defn upload-files [ftp-client fileset initial-dir]
-  (doseq [{:keys [dir path]} (vals (:tree (c/output-fileset fileset)))
-          :let [f (.toFile (.resolve (.toPath dir) path))]]
-    (util/info "uploading %s...\n" path dir)
-    (with-open [file-stream (input-stream f)]
-      (let [[local-path file-name ] (split-path path)
-            remote-path (str "site/wwwroot" local-path)]
-        (doseq [segment (seq (.split remote-path "/"))]
-          (util/info (str "moving to directory: " segment "\n"))
-          (when-not (change-and-report ftp-client segment)
-            (doto ftp-client 
-              (.makeDirectory segment)
-              (ftp-info)
-              (.changeWorkingDirectory segment)
-              (ftp-info))))
-        (util/info (str "storing file: " file-name " "))
-        (util/info "success: ")
-        (util/info (str (.storeFile ftp-client file-name file-stream)))
-        (util/info "\n")
-        (util/info (.getReplyString ftp-client))
-        (.changeWorkingDirectory ftp-client initial-dir)
-        (ftp-info ftp-client)))))
+(defn files-in-dir
+  "Map files by their upload folder to minimize changing the folder during the
+  FTP connection."
+  [path-map new-file]
+  (let [local-directory (:dir new-file)
+        [remote-directory filename] (split-path (:path new-file))
+        old-files (get path-map remote-directory)
+        new-file {:filename filename
+                  :local-directory local-directory}]
+    (assoc path-map remote-directory (conj old-files new-file))))
 
-(defn ftp-upload [{:keys [url username password] :as ftp} fileset]
+(defn ftp-goto-directory
+  "Change to the given directory creating it if it does not exist."
+  [ftp-client directory]
+  (let [path-segments (seq (.split directory "/"))]
+    (util/info (str "moving to directory: " directory "\n"))
+    (when-not (change-and-report ftp-client directory)
+      (doseq [segment path-segments]
+        (doto ftp-client
+          (.makeDirectory segment)
+          (ftp-info)
+          (.changeWorkingDirectory segment)
+          (ftp-info))))))
+
+(defn upload-files [ftp-client initial-dir files]
+  (doseq [[remote-path local-files] (reduce files-in-dir {} files)]
+    (.changeWorkingDirectory ftp-client initial-dir)
+    (ftp-goto-directory ftp-client remote-path)
+    (doseq [{:keys [filename local-directory]} local-files
+            :let [f (.toFile (.resolve (.toPath local-directory)
+                                       (str remote-path "/" filename)))]]
+      (util/info "uploading %s...\n" filename)
+      (with-open [file-stream (input-stream f)]
+        (.storeFile ftp-client filename file-stream)
+        (util/info (.getReplyString ftp-client))))))
+
+(defn ftp-upload
+  "Open the FTP connection and upload the output files."
+  [{:keys [url username password] :as ftp} fileset]
   (let [ftp-client (FTPClient.)
         ftp-url-segments (split url #"/" 2)
-        server (first ftp-url-segments)]
+        server (first ftp-url-segments)
+        initial-directory "site/wwwroot"
+        output-files (vals (:tree (c/output-fileset fileset)))]
     (util/info (str "connecting to server: " server "\n"))
+    ;; Initialize the FTP-connection
     (doto ftp-client
       (.connect server)
       (ftp-info)
@@ -103,9 +120,12 @@
       (.setFileType FTP/ASCII_FILE_TYPE)
       (ftp-info)
       (.enterLocalPassiveMode)
-      (ftp-info)
-      (upload-files fileset (.printWorkingDirectory ftp-client))
-      (.disconnect))))
+      (ftp-info))
+    ;; Change to the initial directory
+    (ftp-goto-directory ftp-client initial-directory)
+    ;; Upload the files and disconnect
+    (upload-files ftp-client (.printWorkingDirectory ftp-client) output-files)
+    (.disconnect ftp-client)))
 
 
 (defn publishing-profile [resource-group function]
