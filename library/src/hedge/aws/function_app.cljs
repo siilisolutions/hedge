@@ -6,7 +6,11 @@
             [cljs.core.async :refer [<!]]
             [cljs.core.async.impl.protocols :refer [ReadPort]]
             [clojure.string :as str]
-            [clojure.walk :as w]))
+            [clojure.walk :as w]
+            [taoensso.timbre :as timbre
+                       :refer (log  trace  debug  info  warn  error  fatal  report
+                               logf tracef debugf infof warnf errorf fatalf reportf
+                               spy get-env log-env)]))
 
 (defprotocol Codec
   (serialize [this data])
@@ -43,7 +47,6 @@
         query-map (goog.object/get req "queryStringParameters")
         headers (get r "headers")
         context (get r "requestContext")]
-    (println "raw req" r)
     {:server-port     (-> (get headers "X-Forwarded-Port") js/parseInt)
      :server-name     (get headers "Host")
      :remote-addr     (dig headers "X-Forwarded-For" #(-> % (str/split #"," 2) first))
@@ -64,7 +67,7 @@
 
 (defn ring->lambda [callback codec]
   (fn [raw-resp]
-    (println (str "result: " raw-resp))
+    (trace (str "result: " raw-resp))
     (let [response
           (if (string? raw-resp)
             {:statusCode 200 :body raw-resp}
@@ -75,7 +78,6 @@
                :headers headers
                :body body
                :isBase64Encoded base64}))]
-      (println (str "final result: " response))
       (callback nil (clj->js response)))))
 
 (defn lambda-apigw-function-wrapper
@@ -86,8 +88,9 @@
      (try
        (let [ok     (ring->lambda callback codec)
              result (handler (lambda->ring event))]
-          (cond
-            (satisfies? ReadPort result) (do (println "Result is channel, content pending...")
-                                           (go (ok (<! result))))
-            :else                        (ok result)))
+         (trace (str "request: " (js->clj event)))
+         (cond
+           (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
+                                            (go (ok (<! result))))
+            :else                       (ok result)))
        (catch :default e (callback e nil))))))
