@@ -39,5 +39,5 @@
 
 (def boot-props
 "BOOT_CLOJURE_NAME=org.clojure/clojure
-BOOT_CLOJURE_VERSION=1.8.0
+BOOT_CLOJURE_VERSION=1.9.0
 BOOT_VERSION=2.7.2")

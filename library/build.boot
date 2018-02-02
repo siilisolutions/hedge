@@ -2,7 +2,7 @@
   :source-paths #{"src"}
   :dependencies '[[adzerk/boot-cljs "1.7.228-2" :scope "test"]
                   [speclj "3.3.2" :scope "test"]
-                  [org.clojure/clojurescript "1.9.908"]
+                  [org.clojure/clojurescript "1.9.946"]
                   [crisptrutski/boot-cljs-test "0.3.4" :scope "test"]
                   [camel-snake-kebab "0.4.0"]
                   [org.clojure/core.async "0.3.443"]
