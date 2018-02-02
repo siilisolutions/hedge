@@ -4,6 +4,10 @@
    [clojure.string :as str]
    [cheshire.core :refer [generate-stream]]))
 
+(def SUPPORTED_HANDLERS [:api :timer])
+(def AZURE_FUNCTION {:api 'azure-api-function
+                    :timer 'azure-timer-function})
+
 (defn print-and-return [s]
   (clojure.pprint/pprint s)
   s)

@@ -55,6 +55,12 @@
      :headers         headers
      :body            (get r "body")}))  ; TODO: should use codec or smth probably to handle request body type
   
+(defn ring->azure [context codec]
+  (fn [raw-resp]
+    (trace (str "result: " raw-resp))
+    (if (string? raw-resp)
+      (.done context nil (clj->js {:body raw-resp}))
+      (.done context nil (clj->js raw-resp)))))
 
 (defn azure->timer
   "Converts incoming timer trigger to Hedge timer handler"
@@ -62,12 +68,12 @@
   (let [timer (js->clj timer)]
     {:trigger-time (str (get timer "next") \Z)}))   ; Azure times are UTC but timestamps miss TimeZone
 
-(defn ring->azure [context codec]
+(defn timer->azure
+  "Returns timers result to azure"
+  [context codec]
   (fn [raw-resp]
     (trace (str "result: " raw-resp))
-    (if (string? raw-resp)
-      (.done context nil (clj->js {:body raw-resp}))
-      (.done context nil (clj->js raw-resp)))))
+    (.done context nil (clj->js raw-resp))))
 
 (defn azure-api-function-wrapper
   "wrapper used for http in / http out api function"
@@ -82,7 +88,6 @@
        (let [ok     (ring->azure context codec)
              logfn (.-log context)
              result (handler (into (azure->ring req) {:log logfn}))]
-
           
           (cond
             (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
@@ -101,8 +106,12 @@
         (timbre/merge-config! {:appenders {:console nil}})
         (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
         (trace (str "timer: " (js->clj timer)))
-        (let [ok    #(.done context nil)
-              logfn (.-log context)
+        (let [ok     (timer->azure context codec)
+              logfn  (.-log context)
               result (handler (into (azure->timer timer) {:log logfn}))]
-          (ok))
+
+          (cond
+            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
+                                           (go (ok (<! result))))
+            :else                        (ok result)))
         (catch :default e (.done context e nil))))))
