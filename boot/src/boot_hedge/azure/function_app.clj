@@ -4,7 +4,10 @@
    [boot.util          :as util]
    [clojure.string :as str]
    [boot.filesystem :as fs]
-   [boot-hedge.common.core :refer [serialize-json SUPPORTED_HANDLERS AZURE_FUNCTION one-handler-config]]))
+   [boot-hedge.common.core :refer [serialize-json 
+                                   AZURE_FUNCTION 
+                                   one-handler-config
+                                   one-handler-configs]]))
 
 (defn read-conf [fileset]
   (->> fileset
@@ -80,7 +83,8 @@
    :disabled false})
 
 (defn function-json-for-timer
-  "function.json constructor for function of type timer (timer trigger in). Generates the seconds field as zero."
+  "function.json constructor for function of type timer (timer trigger in). 
+  Generates the seconds field as zero."
   [cron]
    {:bindings 
     [{:name "timer",
@@ -91,14 +95,21 @@
 
 (defn function-type->function-json
   [cfg]
-  (println cfg)
-  (let [variants {:api (function-json-for-api (-> cfg :path) (if-let [authorization (-> cfg :function :authorization)] authorization :anonymous)) 
-                  :timer (function-json-for-timer (-> cfg :function :cron))}]
+  (let [variants {:api (function-json-for-api 
+                         (-> cfg :path) 
+                         (if-let [authorization (-> cfg :function :authorization)] 
+                           authorization 
+                           :anonymous)) 
+                  :timer (function-json-for-timer 
+                           (-> cfg :function :cron))}]
+
     (if-let [json (get variants (-> cfg :type))]
       ; return
       json
       ; or throw expception
-      (throw (Exception. (str "Cannot create function.json for unsupported handler type " (-> cfg :type)))))))
+      (throw 
+        (Exception. 
+          (str "Cannot create function.json for unsupported handler type " (-> cfg :type)))))))
 
 (defn generate-function-json 
   [{:keys [fs cloud-name]} cfg]
@@ -126,20 +137,12 @@
     generate-js-func-compile
     (generate-function-json cfg)))
 
-(defn ^:private item->handler-name 
-  "helper to clarify expression, extracting the handler name during calling map function."
-  [item] (first item))
-
 (defn generate-files 
-  "Entry function for generating the output files. Takes hedge.edn as input. Launches generation of one function if :function-to-build is set."
+  "Entry function for generating the output files. Takes hedge.edn as input.
+  Launches generation of one function if :function-to-build is set."
   [edn-config fs]
   (if-let [handler (c/get-env :function-to-build)]
     ;then
     (generate-function fs (one-handler-config handler edn-config))
     ;else
-    (do
-      (let [configs (select-keys edn-config SUPPORTED_HANDLERS)
-            handler-configs (-> (for [config-type (keys configs)]
-                                  (map (fn [item] (one-handler-config (item->handler-name item) edn-config)) (get configs config-type))) 
-                                flatten)]
-        (reduce generate-function fs handler-configs)))))
+    (reduce generate-function fs (one-handler-configs edn-config))))
