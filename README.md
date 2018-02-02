@@ -21,7 +21,7 @@ Hedge is a platform agnostic ClojureScript framework for deploying ring compatib
 
 ## License
 
-Copyright © 2016-2017 [Siili Solutions Plc.](http://www.siili.com)
+Copyright © 2016-2018 [Siili Solutions Plc.](http://www.siili.com)
 
 Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/legal/epl-v10.html)
 
@@ -33,6 +33,8 @@ Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/lega
 1. Authentication for AWS
 1. Supported Handler Types
 1. Basic Serverless Function Project Structure
+1. hedge.edn
+1. Handler signatures
 1. Testing
 1. Deploying to Azure
 1. Deploying to AWS   
@@ -101,10 +103,14 @@ To store environment variables for current shell session use command
 
 ### Supported Handler Types
 
-Currently supported handler types are :
-* HTTP Request In - HTTP Response Out Handler (Function triggered by incoming HTTP request)
+| **Handler type** | **Trigger**   | **Input**    | **Output**    | **Azure** | **AWS** |
+|------------------|---------------|--------------|---------------|-----------|---------|
+| :api             | HTTP Request  | HTTP Request | HTTP Response | Yes       | Yes     |
+| :timer           | Cron schedule | Timer        | result->JSON  | Yes       | WIP     |
 
 Other handler types are planned.
+
+Notes on Azure handlers: In Azure you can configure the output to be passed as return value to other Azure services.
 
 ### Basic Serverless Project Structure
 
@@ -114,7 +120,7 @@ Note: Example directories might be merged to master repo at some point.
 
 * src/ - This directory contains your CLJS source files
 * target/ - Optionally persisted compiled output directory
-* resources/hedge.edn - Includes configuration information that maps your program function to the serverless function entry point. You can configure here if a function is protected with authentication code or available without authentication.
+* resources/hedge.edn - Includes configuration information that maps your program function to the serverless function entry point. You can configure here if a function is protected with authentication code or available without authentication. Also function type is defined here (api, timer, ...)
 * test/ - This directory contains your unit tests
 * boot.properties - Boot properties
 * build.boot - Your build configuration file
@@ -123,6 +129,57 @@ Note: Example directories might be merged to master repo at some point.
 
 Note: Current implementation of Hedge requires to select target cloud in `build.boot` file.
 Refer example repositories for more info. This feature will be changed later.
+
+### hedge.edn
+
+**resources/hedge.edn** contains the configuration for the given functions.
+
+Example of a configuration for two apis and two timers: 
+
+```
+{:api {"api1" {:handler my_cool_function.core/crunch-my-data :authorization :anonymous}
+       "api2" {:handler my_cool_function.core/hello :authorization :function}}
+
+ :timer {"timer1" {:handler my_cool_function.core/timer-handler :cron "*/10 * * * *"}
+         "timer2" {:handler my_cool_function.core/timer-handler-broken :cron "*/10 * * * *"}}
+```
+
+Common structure:
+
+`{:handler-type {"name-given-to-api" {:handler namespace.core/name-of-function}}}`
+
+Api specific:
+
+`:authorization :anonymous` or `:authorization :function` - defines if the HTTP endpoint public or access key protected
+
+Timer specific:
+`:cron "{minutes} {hours} {days-of-month} {months} {day-of-week}"`
+
+Example on cron expression that will trigger every minute: `"*/1 * * * *"`
+
+Note on used cron expression: 
+- Azure has a field for seconds and AWS doesn't (field results to 0 when generating Azure function.json)
+- AWS has a field for years and Azure doesn't (field results to *)
+
+Azure users: You can modify the resulted function.json if you need to incorporate seconds in your cron expression
+
+### Handler signatures
+
+Short examples on handler signatures:
+
+```
+(defn api-handler
+    "req contains the incoming http request, return value is passed as the response" 
+    [req]
+    "Hello World!)
+
+(defn timer-handler
+    "timer contains the scheduled trigger timestamp, return can be passed to function output i.e. other wired service"
+    [timer] 
+    "Hello World!")
+```
+
+See examples for more usage patterns.
 
 ### Testing
 
@@ -160,7 +217,7 @@ To create your function app with consumption plan (Windows Server backed serverl
 
 To compile and deploy your function to Azure:
 
-    boot deploy-azure -a NameOfFunctionApp -r NameOfResourceGroup
+    boot azure/deploy-azure -a NameOfFunctionApp -r NameOfResourceGroup
 
 If your authentication file is correctly generated and found in the environment, your function should deploy to Azure and can be reached with HTTP.
 
@@ -183,16 +240,16 @@ in the future.
 ### Other Usage Examples
 
     # Get information about the Azure Publishing Profile
-    boot azure-publish-profile -a functionapp -r resourcegroup
+    boot azure/azure-publish-profile -a functionapp -r resourcegroup
 
     # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
-    boot deploy-azure -a functionapp -r resourcegroup target
+    boot azure/deploy-azure -a functionapp -r resourcegroup target
 
     # Persist the compiled output. Given no options, defaults to Optimizations=simple and directory=target
-    boot deploy-to-directory -O <optimization level> -f <function name> -d <directory>
+    boot azure/deploy-to-directory -O <optimization level> -f <function name> -d <directory>
 
     # Deploy compiled artifacts from target directory (index.js and function.json)
-    boot deploy-azure-from-directory -a functionapp -r resourcegroup -d <directory>
+    boot azure/deploy-azure-from-directory -a functionapp -r resourcegroup -d <directory>
 
     # Get more help of task, i.e. commandline options
     boot <task-name> -h
