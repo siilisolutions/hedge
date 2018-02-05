@@ -1,5 +1,6 @@
 (ns boot-hedge.common.core
   (:require 
+   [boot.util]
    [clojure.pprint]
    [clojure.string :as str]
    [cheshire.core :refer [generate-stream]]))
@@ -35,6 +36,15 @@
     (dashed-alphanumeric (namespace handler))
     "__"
     (dashed-alphanumeric (name handler))))
+
+(defn fail-if-false
+  "Check if `value` is truthy and fail the build if not. `msg` & `more` will be
+  printed as if passed to `format`."
+  [value msg & more]
+  (when (not value)
+    (do
+      (boot.util/fail (str msg "\n") more)
+      (boot.util/exit-error))))
 
 (defn ^:private ->handler
   "Helper to create handler variables"

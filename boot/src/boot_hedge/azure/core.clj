@@ -8,7 +8,7 @@
    [clojure.string :refer [split]]
    [clojure.java.io :refer [file input-stream]]
    [boot-hedge.azure.function-app :refer [read-conf generate-files]]
-   [boot-hedge.common.core :refer [print-and-return]]
+   [boot-hedge.common.core :refer [print-and-return fail-if-false]]
    [clojure.spec.alpha :as spec])
   (:import [com.microsoft.azure.management Azure]
            [com.microsoft.rest LogLevel]
@@ -117,10 +117,15 @@
 
 (defn appname [b] (SdkContext/randomResourceName b, 20))
 
+(defn check-app-rg-names [app-name rg-name]
+  (fail-if-false app-name "Application name (-a/--app-name) is required but not set")
+  (fail-if-false rg-name "Resource group name (-r/--rg-name) is required but not set"))
+
 (c/deftask create-function-app
   "Creates given function app"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
+  (check-app-rg-names app-name rg-name)
   (-> (azure)
       .appServices
       .functionApps
@@ -226,6 +231,7 @@
    i client-id CLIENT str "Azure client id"
    t tenant-id TENANT str "Azure tenant id"
    s secret SECRET str "Azure client secret"]
+  (check-app-rg-names app-name rg-name)
   (let [credential-candidates (map-credentials client-id tenant-id secret
                                                principal-file)
         credentials (resolve-azure-credentials credential-candidates)]
@@ -280,6 +286,7 @@
    i client-id CLIENT str "Azure client id"
    t tenant-id TENANT str "Azure tenant id"
    s secret SECRET str "Azure client secret"]
+  (check-app-rg-names app-name rg-name)
   (let [credential-candidates (map-credentials client-id tenant-id secret
                                                principal-file)
         credentials (resolve-azure-credentials credential-candidates)]
@@ -303,6 +310,7 @@
    i client-id CLIENT str "Azure client id"
    t tenant-id TENANT str "Azure tenant id"
    s secret SECRET str "Azure client secret"]
+  (check-app-rg-names app-name rg-name)
   (when function (c/set-env! :function-to-build function))
   (let [credential-candidates (map-credentials client-id tenant-id secret
                                                principal-file)
@@ -319,6 +327,7 @@
    r rg-name RGN str "the resource group name"
    f function FUNCTION str "Function to deploy"
    O optimizations LEVEL kw "The optimization level."]
+  (check-app-rg-names app-name rg-name)
   (deploy-azure :app-name app-name
                 :rg-name rg-name
                 :function function
