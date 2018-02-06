@@ -6,7 +6,8 @@
    [boot.task.built-in :refer [sift target zip]]
    [adzerk.boot-cljs :refer [cljs]]
    [clojure.java.io :refer [file]]
-   [boot-hedge.common.core :refer [print-and-return now date->unixts]]
+   [boot-hedge.common.core :refer [print-and-return now date->unixts
+                                   ensure-valid-cron]]
    [boot-hedge.aws.lambda :refer [read-conf generate-files]]
    [boot-hedge.aws.cloudformation-api :as cf-api]
    [boot-hedge.aws.cloudformation :as cf]
@@ -18,6 +19,7 @@
     (-> fs
         read-conf
         print-and-return
+        ensure-valid-cron
         (generate-files fs))))
 
 (c/deftask ^:private upload-artefact

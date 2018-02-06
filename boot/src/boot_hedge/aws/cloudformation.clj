@@ -44,8 +44,6 @@
 (defn hedge-timer->aws 
   [expression]
   (let [[minutes hours dom month dow :as splitted] (str/split expression #" ")]
-    (when (not= 5 (count splitted)) (throw (Exception. "Bad amount of parameters in cron expression")))
-    (when (and (not= "*" dom) (not= "*" dow)) (throw (Exception. "Bad cron expression")))
     (case [dom dow]
       ["*" "*"] (str "cron(" minutes " " hours " " dom " " month " " "?" " *)") ; AWS has weird rules
       :default (str "cron(" expression " *)"))))

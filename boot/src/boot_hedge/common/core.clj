@@ -75,3 +75,12 @@
          (fn [item] (one-handler-config (item->handler-name item) edn-config)) 
          (get configs config-type))) 
       flatten)))
+
+(defn ensure-valid-cron
+  [{timer :timer :as all}]
+  (doseq [timer (vals timer)]
+    (let [[minutes hours dom month dow :as splitted] (str/split (:cron timer) #" ")]
+      (when (not= 5 (count splitted)) (throw (Exception. "Bad amount of parameters in cron expression")))
+      (when (and (not= "*" dom) (not= "*" dow)) (throw (Exception. "Bad cron expression")))))
+      ; TODO: use spec and add checks for L, W and #
+  all)
