@@ -4,7 +4,10 @@
 
 ; note that the class names are prefixed with ', we are testing data structure, not functionality
 (def hedge-edn
-  {:api {"api1" {:handler 'my_cool_function.core/crunch-my-data :authorization :anonymous}
+  {:queue {"queue1" {:handler 'mycoolqueuehandler :queue "queue1" :connection "connection-string1"}
+           "queue2" {:handler 'mycoolqueuehandler :queue "queue2" :connection "connection-string2"}}
+    
+   :api {"api1" {:handler 'my_cool_function.core/crunch-my-data :authorization :anonymous}
          "api2" {:handler 'my_cool_function.core/hello :authorization :function}}
 
    :timer {"timer1" {:handler 'my_cool_function.core/timer-handler :cron "*/10 * * * *"}
@@ -25,19 +28,26 @@
       (is (= (one-handler-config "timer2" hedge-edn) 
              {:type :timer
               :function {:handler 'my_cool_function.core/timer-handler-broken :cron "*/10 * * * *"}
-              :path "timer2"})))))
+              :path "timer2"}))
+      (is (= (one-handler-config "queue1" hedge-edn) 
+            {:type :queue
+              :function {:handler 'mycoolqueuehandler :queue "queue1" :connection "connection-string1"}
+              :path "queue1"})))))
 
 (deftest one-handler-configs-test
   (testing "Tests if a sequence of one-handler-configs can be created with hedge.edn input"
     (testing "if configs can be handled individually"      
       (let [configs (one-handler-configs hedge-edn)]
         (is (= (-> configs count) 
-               4))
+               6))
 
         (is (= (-> (filter #(= (-> % :type) :api) configs) count)
               2))
 
         (is (= (-> (filter #(= (-> % :type) :timer) configs) count)
+              2))
+
+        (is (= (-> (filter #(= (-> % :type) :queue) configs) count)
               2))
 
         (is (zero? (-> (filter #(= (-> % :type) :disabled-api) configs) count)))

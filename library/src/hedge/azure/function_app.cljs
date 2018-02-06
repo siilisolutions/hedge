@@ -75,6 +75,19 @@
     (trace (str "result: " raw-resp))
     (.done context nil (clj->js raw-resp))))
 
+(defn azure->queue
+  "Converts incoming queue message to Hedge queue message handler"
+  [message]
+  (let [message (js->clj message)]
+    {:payload message}))
+
+(defn queue->azure
+  "Returns queue triggered handlers result to azure"
+  [context codec]
+  (fn [raw-resp]
+    (trace (str "result: " raw-resp))
+    (.done context nil (clj->js raw-resp))))
+
 (defn azure-api-function-wrapper
   "wrapper used for http in / http out api function"
   ([handler]
@@ -113,5 +126,25 @@
           (cond
             (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                            (go (ok (<! result))))
+            :else                        (ok result)))
+        (catch :default e (.done context e nil))))))
+
+(defn azure-queue-function-wrapper
+  "wrapper used for timer-triggered function"
+  ([handler]
+    (azure-queue-function-wrapper handler nil))
+  ([handler codec]
+    (fn [context message]
+      (try 
+        (timbre/merge-config! {:appenders {:console nil}})
+        (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
+        (trace (str "message: " (js->clj message)))
+        (let [ok     (queue->azure context codec)
+              logfn  (.-log context)
+              result (handler (into (azure->queue message) {:log logfn}))]
+
+          (cond
+            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
+                                            (go (ok (<! result))))
             :else                        (ok result)))
         (catch :default e (.done context e nil))))))

@@ -103,14 +103,15 @@ To store environment variables for current shell session use command
 
 ### Supported Handler Types
 
-| **Handler type** | **Trigger**   | **Input**    | **Output**    | **Azure** | **AWS** |
-|------------------|---------------|--------------|---------------|-----------|---------|
-| :api             | HTTP Request  | HTTP Request | HTTP Response | Yes       | Yes     |
-| :timer           | Cron schedule | Timer        | result->JSON  | Yes       | WIP     |
+| **Handler type** | **Trigger**          | **Trigger Input**    | **Output**    | **Azure** | **AWS** |
+|------------------|----------------------|----------------------|---------------|-----------|---------|
+| :api             | HTTP Request         | HTTP Request         | HTTP Response | Yes       | Yes     |
+| :timer           | Cron schedule        | Timer                | result->JS    | Yes       | WIP     |
+| :queue           | New message in queue | Message              | result->JS    | Yes       |         |
 
 Other handler types are planned.
 
-Notes on Azure handlers: In Azure you can configure the output to be passed as return value to other Azure services.
+Notes on Azure handlers: In Azure you can configure the output to be passed as return value to other Azure services (i.e. queue, table storage etc).
 
 ### Basic Serverless Project Structure
 
@@ -134,7 +135,7 @@ Refer example repositories for more info. This feature will be changed later.
 
 **resources/hedge.edn** contains the configuration for the given functions.
 
-Example of a configuration for two apis and two timers:
+Example of a configuration for two apis, two timers and one queue triggered function:
 
 ```
 {:api {"api1" {:handler my_cool_function.core/crunch-my-data :authorization :anonymous}
@@ -142,17 +143,21 @@ Example of a configuration for two apis and two timers:
 
  :timer {"timer1" {:handler my_cool_function.core/timer-handler :cron "*/10 * * * *"}
          "timer2" {:handler my_cool_function.core/timer-handler-broken :cron "*/10 * * * *"}}
+
+ :queue {:"queue" {:handler my_cool_function.core/timer-handler
+                   :queue "nameOfQueue"
+                   :connection "environmental variable that holds the connection string (Azure)"}}}
 ```
 
 Common structure:
 
 `{:handler-type {"name-given-to-api" {:handler namespace.core/name-of-function}}}`
 
-Api specific:
+Azure **:api** specific:
 
 `:authorization :anonymous` or `:authorization :function` - defines if the HTTP endpoint public or access key protected
 
-Timer specific:
+**:timer** specific:
 `:cron "{minutes} {hours} {day-of-month} {months} {day-of-week}"`
 
 Example on cron expression that will trigger every minute: `"*/1 * * * *"`
@@ -167,6 +172,19 @@ Note on used cron expression:
 
 Azure users: You can modify the resulted function.json if you need to incorporate seconds in your cron expression
 
+Azure **:queue** specific:
+`:accessRights "Manage"` or `:accessRights "Listen"` - if defined, will use servicebus queue/topic queue instead of storage queue
+`:connection "ENV_VARIABLE"` - function app environmental variable that holds the connection string to the queue service (for example AzureWebJobsStorage for storage queues)
+`:subscription "subscriptionName"` - if defined together with `:accessRights`, will use a service bus topic & subscription. Subscription will be created if it does not exist.
+
+If your function throws an unhandled exception or fails, the message is returned to the queue, retried and finally put into poison queue (azure storage queue) or dead-letter queue (servicebus queue).
+
+Note: It might be that it is not possible to put a servicebus topic message to dead-letter queue (when your function fails), because design decisions in Azure function runtime.  
+
+Storage Queue polling frequency and servicebus queue settings for the function app runtime can be set in **host.json**, see https://docs.microsoft.com/en-us/azure/azure-functions/functions-host-json#queues
+
+Please note you must create the queues/topics yourself (you can do it through the portal or use Azure Storage Explorer with storage Queues).
+
 ### Handler signatures
 
 Short examples on handler signatures:
@@ -175,12 +193,17 @@ Short examples on handler signatures:
 (defn api-handler
     "req contains the incoming http request, return value is passed as the response"
     [req]
-    "Hello World!)
+    "Hello World!")
 
 (defn timer-handler
     "timer contains the scheduled trigger timestamp, return can be passed to function output i.e. other wired service"
     [timer]
     "Hello World!")
+
+(defn queue-handler
+    "message contains the message payload, return can be passed to function output i.e. other wired service"
+    [message]
+    "Hello World!)
 ```
 
 See examples for more usage patterns.

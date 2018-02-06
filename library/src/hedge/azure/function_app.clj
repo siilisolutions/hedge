@@ -8,3 +8,6 @@
 
 (defmacro azure-timer-function [f]
   `(node-module1 (hedge.azure.function-app/azure-timer-function-wrapper ~f)))
+
+(defmacro azure-queue-function [f]
+  `(node-module1 (hedge.azure.function-app/azure-queue-function-wrapper ~f)))

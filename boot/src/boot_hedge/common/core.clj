@@ -5,9 +5,10 @@
    [clojure.string :as str]
    [cheshire.core :refer [generate-stream]]))
 
-(def SUPPORTED_HANDLERS [:api :timer])
+(def SUPPORTED_HANDLERS [:api :timer :queue])
 (def AZURE_FUNCTION {:api 'azure-api-function
-                     :timer 'azure-timer-function})
+                     :timer 'azure-timer-function
+                     :queue 'azure-queue-function})
 (def AWS_FUNCTIONS {:api 'lambda-apigw-function
                     :timer 'lambda-timer-function})
 
