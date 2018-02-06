@@ -6,7 +6,7 @@
 
 (def SUPPORTED_HANDLERS [:api :timer])
 (def AZURE_FUNCTION {:api 'azure-api-function
-                    :timer 'azure-timer-function})
+                     :timer 'azure-timer-function})
 (def AWS_FUNCTIONS {:api 'lambda-apigw-function
                     :timer 'lambda-timer-function})
 
@@ -56,22 +56,22 @@
   "Returns a one-handler-cfg map"
   [handler edn-config]
   (let [cfg (handler-config handler edn-config)]
-  {:type (-> cfg keys first)
-   :path handler
-   :function (get (first (vals cfg)) handler)}))
+   {:type (-> cfg keys first)
+    :path handler
+    :function (get (first (vals cfg)) handler)}))
 
-(defn ^:private item->handler-name 
+(defn ^:private item->handler-name
   "helper to clarify expression, extracting the handler name during calling map function."
-  [item] 
+  [item]
   (first item))
 
 (defn one-handler-configs
   "Returns a sequence of one-handler-configs"
   [edn-config]
   (let [configs (select-keys edn-config SUPPORTED_HANDLERS)]
-    (-> 
+    (->
       (for [config-type (keys configs)]
-      (map 
-        (fn [item] (one-handler-config (item->handler-name item) edn-config)) 
-        (get configs config-type))) 
+       (map 
+         (fn [item] (one-handler-config (item->handler-name item) edn-config)) 
+         (get configs config-type))) 
       flatten)))
