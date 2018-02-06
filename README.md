@@ -134,7 +134,7 @@ Refer example repositories for more info. This feature will be changed later.
 
 **resources/hedge.edn** contains the configuration for the given functions.
 
-Example of a configuration for two apis and two timers: 
+Example of a configuration for two apis and two timers:
 
 ```
 {:api {"api1" {:handler my_cool_function.core/crunch-my-data :authorization :anonymous}
@@ -153,11 +153,15 @@ Api specific:
 `:authorization :anonymous` or `:authorization :function` - defines if the HTTP endpoint public or access key protected
 
 Timer specific:
-`:cron "{minutes} {hours} {days-of-month} {months} {day-of-week}"`
+`:cron "{minutes} {hours} {day-of-month} {months} {day-of-week}"`
 
 Example on cron expression that will trigger every minute: `"*/1 * * * *"`
 
-Note on used cron expression: 
+Note on used cron expression:
+- Only simple expressions are supported
+  - *, numbers and / wildcard
+  - setting both day-of-month and day-of-week is not supported (AWS limitation)
+  - names of days/months and L, W, ? and # wildcards are not supported
 - Azure has a field for seconds and AWS doesn't (field results to 0 when generating Azure function.json)
 - AWS has a field for years and Azure doesn't (field results to *)
 
@@ -169,13 +173,13 @@ Short examples on handler signatures:
 
 ```
 (defn api-handler
-    "req contains the incoming http request, return value is passed as the response" 
+    "req contains the incoming http request, return value is passed as the response"
     [req]
     "Hello World!)
 
 (defn timer-handler
     "timer contains the scheduled trigger timestamp, return can be passed to function output i.e. other wired service"
-    [timer] 
+    [timer]
     "Hello World!")
 ```
 
@@ -253,4 +257,3 @@ in the future.
 
     # Get more help of task, i.e. commandline options
     boot <task-name> -h
-
