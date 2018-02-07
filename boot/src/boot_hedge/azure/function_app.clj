@@ -3,6 +3,7 @@
    [boot.core          :as c]
    [boot.util          :as util]
    [clojure.string :as str]
+   [clojure.core.match :refer [match]]
    [boot.filesystem :as fs]
    [boot-hedge.common.core :refer [serialize-json 
                                    AZURE_FUNCTION 
@@ -132,17 +133,12 @@
    :disabled false})
 
 (defn function-json-for-queue
-  "1: selects between servicebus and storage queue if accessRights is set.
-   2: selects between servicebus topic and queue depending if subscription is set."
+  "decides between storage queue, servicebusqueue and servicebustopic depending on present parameters"
   [cfg]
-  (if (-> cfg :function :accessRights)
-    ; create servicebus
-    (if (-> cfg :function :subscription)
-      (function-json-for-servicebus-topic cfg)
-      (function-json-for-servicebus-queue cfg))
-    ; else create storage queue
-    (function-json-for-storage-queue cfg)))
-
+  (match [(-> cfg :function :accessRights) (-> cfg :function :subscription)]
+    [nil nil] (function-json-for-storage-queue cfg)
+    [_ nil] (function-json-for-servicebus-queue cfg)
+    [_ _] (function-json-for-servicebus-topic cfg)))
 
 (defn function-type->function-json
   [cfg]
