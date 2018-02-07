@@ -3,6 +3,7 @@
    [boot.core          :as c]
    [boot.util          :as util]
    [clojure.string :as str]
+   [clojure.core.match :refer [match]]
    [boot.filesystem :as fs]
    [boot-hedge.common.core :refer [serialize-json 
                                    AZURE_FUNCTION 
@@ -72,36 +73,78 @@
 
 (defn function-json-for-api 
   "function.json constructor for function of type api (http in / http out)"
-  [path authorization]
+  [cfg]
   {:bindings
-   [{:authLevel (name authorization),
-     :type "httpTrigger",
-     :direction "in",
-     :name "req"
-     :route path}
+  [{:authLevel (name (if-let [authorization (-> cfg :function :authorization)] 
+                        authorization 
+                        :anonymous)),
+    :type "httpTrigger",
+    :direction "in",
+    :name "req"
+    :route (-> cfg :path)}
     {:type "http", :direction "out", :name "$return"}],
-   :disabled false})
+  :disabled false})
 
 (defn function-json-for-timer
   "function.json constructor for function of type timer (timer trigger in). 
   Generates the seconds field as zero."
-  [cron]
+  [cfg]
    {:bindings 
     [{:name "timer",
       :type "timerTrigger",
       :direction "in",
-      :schedule (str "0 " cron)}],
+      :schedule (str "0 " (-> cfg :function :cron))}],
      :disabled false})
+
+(defn function-json-for-storage-queue
+  "function.json constructor for function of type storage queue."
+  [cfg]
+  {:bindings
+   [{:name "message",
+     :type "queueTrigger",
+     :direction "in",
+     :queueName (-> cfg :function :queue),
+     :connection (-> cfg :function :connection)}],
+   :disabled false})
+
+(defn function-json-for-servicebus-queue
+  "function.json constructor for function of type service bus queue."
+  [cfg]
+  {:bindings
+   [{:name "message",
+     :type "serviceBusTrigger",
+     :direction "in",
+     :queueName (-> cfg :function :queue),
+     :accessRights (-> cfg :function :accessRights),
+     :connection (-> cfg :function :connection)}],
+   :disabled false})
+
+(defn function-json-for-servicebus-topic
+  "function.json constructor for function of type service bus topic queue."
+  [cfg]
+  {:bindings
+   [{:name "message",
+     :type "serviceBusTrigger",
+     :direction "in",
+     :topicName (-> cfg :function :queue),
+     :accessRights (-> cfg :function :accessRights),
+     :subscriptionName (-> cfg :function :subscription),
+     :connection (-> cfg :function :connection)}],
+   :disabled false})
+
+(defn function-json-for-queue
+  "decides between storage queue, servicebusqueue and servicebustopic depending on present parameters"
+  [cfg]
+  (match [(-> cfg :function :accessRights) (-> cfg :function :subscription)]
+    [nil nil] (function-json-for-storage-queue cfg)
+    [_ nil] (function-json-for-servicebus-queue cfg)
+    [_ _] (function-json-for-servicebus-topic cfg)))
 
 (defn function-type->function-json
   [cfg]
-  (let [variants {:api (function-json-for-api 
-                         (-> cfg :path) 
-                         (if-let [authorization (-> cfg :function :authorization)] 
-                           authorization 
-                           :anonymous)) 
-                  :timer (function-json-for-timer 
-                           (-> cfg :function :cron))}]
+  (let [variants {:api   (function-json-for-api cfg)
+                  :timer (function-json-for-timer cfg)
+                  :queue (function-json-for-queue cfg)}]
 
     (if-let [json (get variants (-> cfg :type))]
       ; return
