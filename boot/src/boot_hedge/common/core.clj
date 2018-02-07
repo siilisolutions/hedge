@@ -10,7 +10,8 @@
                      :timer 'azure-timer-function
                      :queue 'azure-queue-function})
 (def AWS_FUNCTIONS {:api 'lambda-apigw-function
-                    :timer 'lambda-timer-function})
+                    :timer 'lambda-timer-function
+                    :queue 'lambda-queue-function})
 
 (defn print-and-return [s]
   (clojure.pprint/pprint s)
@@ -28,7 +29,7 @@
       (int)))
 
 (defn serialize-json [f d]
-  (generate-stream d (clojure.java.io/writer f)))
+  (generate-stream d (clojure.java.io/writer f) {:pretty true}))
 
 (defn dashed-alphanumeric [s]
   (str/replace s #"[^A-Za-z0-9\-]" "_"))

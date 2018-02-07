@@ -8,3 +8,6 @@
 
 (defmacro lambda-timer-function [f]
   `(node-module2 (hedge.aws.function-app/lambda-timer-function-wrapper ~f) "handler"))
+
+(defmacro lambda-queue-function [f]
+  `(node-module2 (hedge.aws.function-app/lambda-queue-function-wrapper ~f) "handler"))

@@ -1,5 +1,6 @@
 (ns boot-hedge.aws.cloudformation-api
-  (:require [boot-hedge.common.core :refer [now]])
+  (:require [boot-hedge.common.core :refer [now]]
+            [camel-snake-kebab.core :refer [->camelCaseString ->PascalCase]])
   (:import [com.amazonaws.services.cloudformation AmazonCloudFormationClientBuilder]
            [com.amazonaws.regions Regions]
            [com.amazonaws.services.cloudformation.model DescribeStacksRequest]
@@ -153,7 +154,9 @@
   (let [template-string (slurp template)
         stack-exists (stack-exists? client stack-name)
         parameters-for-deploy (parameters "FunctionDeploymentBucket" bucket 
-                                          "FunctionDeploymentKey" key)
+                                          "FunctionDeploymentKey" key
+                                          "PrettyDeploymentName" stack-name
+                                          "DeploymentName" (->PascalCase stack-name))
         create-changeset-result ((if stack-exists update-stack create-stack) 
                                  client stack-name template-string parameters-for-deploy)
         changeset-id (.getId create-changeset-result)]

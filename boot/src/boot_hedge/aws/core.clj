@@ -71,6 +71,8 @@
   [O optimizations LEVEL kw "The optimization level."]
   (c/task-options!
    cljs #(assoc-in % [:compiler-options :target] :nodejs))
+  (c/task-options!
+   cljs #(assoc-in % [:compiler-options :compiler-stats] true))
   (comp
    (prepare-lambdas)
    (cljs :optimizations optimizations)))
