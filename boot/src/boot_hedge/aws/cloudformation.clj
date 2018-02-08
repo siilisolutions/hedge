@@ -9,12 +9,15 @@
 
 (defn output
   [config]
-  {:HedgeAPIEndpoint {:Value {"Fn::Join" ["" ["https://"
-                                              {:Ref "ServerlessRestApi"}
-                                              ".execute-api."
-                                              {:Ref "AWS::Region"}
-                                              ".amazonaws.com/Prod"]]}
-                      :Description "API endpoint base URL"}})
+  (if (:api config)
+    {:HedgeAPIEndpoint {:Value {"Fn::Join" ["" ["https://"
+                                                {:Ref "ServerlessRestApi"}
+                                                ".execute-api."
+                                                {:Ref "AWS::Region"}
+                                                ".amazonaws.com/Prod"]]}
+                        :Description "API endpoint base URL"}}
+    {}))
+
 (defn codeuri
   []
   {:Bucket {:Ref "FunctionDeploymentBucket"}
