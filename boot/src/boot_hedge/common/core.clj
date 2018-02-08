@@ -67,10 +67,13 @@
 (defn one-handler-config 
   "Returns a one-handler-cfg map"
   [handler edn-config]
-  (let [cfg (handler-config handler edn-config)]
-   {:type (-> cfg keys first)
-    :path handler
-    :function (get (first (vals cfg)) handler)}))
+  (let [cfg (handler-config handler edn-config)
+        type (-> cfg keys first)
+        function (get (first (vals cfg)) handler)
+        trigger-handler {:type type 
+                         :path handler 
+                         :function function}]
+    trigger-handler))
 
 (defn ^:private item->handler-name
   "helper to clarify expression, extracting the handler name during calling map function."

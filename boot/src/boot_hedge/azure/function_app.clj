@@ -59,7 +59,10 @@
       clojure.java.io/make-parents
       (spit `(~'ns ~func-ns (:require [hedge.azure.function-app :refer-macros [~azure-function]]
                                      [~handler-ns :as ~'handler])))
-      (spit `(~azure-function ~(symbol (str 'handler "/" handler-func))) :append true))
+      (spit `(~azure-function ~(symbol (str 'handler "/" handler-func)) 
+                               :inputs ~(-> function :inputs) 
+                               :outputs ~(-> function :outputs)) 
+            :append true))
     (clojure.pprint/pprint (slurp ff))
     {:fs (-> fs (c/add-source tgt) c/commit!)
      :func func-ns

@@ -4,34 +4,34 @@
   
 (def api-handler-config1
   {:type :api
-  :function {:handler 'my_cool_function.core/crunch-my-data :authorization :anonymous}
+  :function {:handler `my_cool_function.core/crunch-my-data :authorization :anonymous}
   :path "api1"})
 
 (def api-handler-config2
   {:type :api
-  :function {:handler 'my_cool_function.core/crunch-my-data :authorization :function}
+  :function {:handler `my_cool_function.core/crunch-my-data :authorization :function}
   :path "api2"})
 
 (def api-handler-config3
   {:type :api
-  :function {:handler 'my_cool_function.core/crunch-my-data}
+  :function {:handler `my_cool_function.core/crunch-my-data}
   :path "api3"})
 
 (def timer-handler-config
  {:type :timer
-  :function {:handler 'my_cool_function.core/timer-handler-broken :cron "*/10 * * * *"}
+  :function {:handler `my_cool_function.core/timer-handler-broken :cron "*/10 * * * *"}
   :path "timer2"})
 
 (def queue-handler-config 
   {:type :queue
-  :function {:handler 'my_cool_function.core/queuehandler
+  :function {:handler `my_cool_function.core/queuehandler
              :queue "myqueue"
              :connection "AzureWebJobsDashboard"}
   :path "queue1"})
 
 (def topic-queue-handler-config 
   {:type :queue
-  :function {:handler 'my_cool_function.core/queuehandler
+  :function {:handler `my_cool_function.core/queuehandler
              :queue "mytopic"
              :subscription "subscription"
              :accessRights "Manage"
@@ -40,7 +40,7 @@
 
 (def sb-queue-handler-config 
   {:type :queue
-  :function {:handler 'my_cool_function.core/queuehandler
+  :function {:handler `my_cool_function.core/queuehandler
               :queue "myqueue"
               :accessRights "Manage"
               :connection "AzureWebJobsDashboard"}
