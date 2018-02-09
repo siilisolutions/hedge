@@ -10,7 +10,9 @@
             [taoensso.timbre :as timbre
                        :refer (log  trace  debug  info  warn  error  fatal  report
                                logf tracef debugf infof warnf errorf fatalf reportf
-                               spy get-env log-env)]))
+                               spy get-env log-env)]
+            [oops.core :refer [oget oset! ocall oapply ocall! oapply!
+                               oget+ oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
 
 (defprotocol Codec
   (serialize [this data])
@@ -98,14 +100,13 @@
 (defn ->hedge-timer
   "converts AWS specific timer payload to Hedge handler unified format"
   [event]
-  (let [data (js->clj (.parse js/JSON event))]
-    {:trigger-time (get data "time")}))
+  {:trigger-time (oget event "time")})
 
 (defn ->aws-timer
   [callback]
   (fn [response]
-    (when (not (nil? response)) (warn (str "Response " + response + " not being sent anywhere")))
-    (callback)))
+    (when (not (nil? response)) (warn "Cloudwatch does not handle function output: " response))
+    (callback nil response)))
 
 (defn lambda-timer-function-wrapper
   "wrapper for AWS timer events"
