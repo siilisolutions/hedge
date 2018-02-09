@@ -10,7 +10,9 @@
             [taoensso.timbre :as timbre
                        :refer (log  trace  debug  info  warn  error  fatal  report
                                logf tracef debugf infof warnf errorf fatalf reportf
-                               spy get-env log-env)]))
+                               spy get-env log-env)]
+            [oops.core :refer [oget oset! ocall oapply ocall! oapply!
+                               oget+ oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
 
 (defprotocol Codec
   (serialize [this data])
@@ -98,8 +100,7 @@
 (defn ->hedge-timer
   "converts AWS specific timer payload to Hedge handler unified format"
   [event]
-  (let [data (js->clj (.parse js/JSON event))]
-    {:trigger-time (get data "time")}))
+  {:trigger-time (oget event "time")})
 
 (defn ->aws-timer
   [callback]
