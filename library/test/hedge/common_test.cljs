@@ -16,4 +16,6 @@
     (let [result (outputs->atoms outputs)]
       (reset! (-> result :out2 :value) "setted value")
       (is (nil? @(-> result :out1 :value)))
-      (is (= "setted value" @(-> result :out2 :value))))))
+      (is (= "setted value" @(-> result :out2 :value)))
+      (is (= "out1") (-> result :out1 :key))
+      (is (= :queue (-> result :out1 :type))))))
