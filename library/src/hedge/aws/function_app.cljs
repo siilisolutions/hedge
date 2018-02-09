@@ -105,8 +105,8 @@
 (defn ->aws-timer
   [callback]
   (fn [response]
-    (when (not (nil? response)) (warn "Cloudwatch does not handle function output: " response))
-    (callback nil response)))
+    (when (not (nil? response)) (warn "Response " response " not being handled"))
+    (callback)))
 
 (defn lambda-timer-function-wrapper
   "wrapper for AWS timer events"
