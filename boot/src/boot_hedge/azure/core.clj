@@ -3,19 +3,21 @@
   (:require
    [boot.core          :as c]
    [boot.util          :as util]
-   [boot.task.built-in :refer [sift target]]
+   [boot.task.built-in :refer [sift target zip]]
    [adzerk.boot-cljs :refer [cljs]]
-   [clojure.string :refer [split]]
+   [clojure.string :refer [split, ends-with?]]
    [clojure.java.io :refer [file input-stream]]
    [boot-hedge.azure.function-app :refer [read-conf generate-files]]
    [boot-hedge.common.core :refer [print-and-return fail-if-false]]
-   [clojure.spec.alpha :as spec])
+   [clojure.spec.alpha :as spec]
+   [org.httpkit.client :as http])
   (:import [com.microsoft.azure.management Azure]
            [com.microsoft.rest LogLevel]
            [com.microsoft.azure.management.resources.fluentcore.arm Region]
            [com.microsoft.azure.management.resources.fluentcore.utils SdkContext]
            [com.microsoft.azure.credentials ApplicationTokenCredentials]
            [org.apache.commons.net.ftp FTPClient FTP]))
+
 
 
 ;;; Define the required parameters
@@ -41,6 +43,18 @@
                           ::azure-principal-file-parameter
                           ::azure-principal-file-env)]))
 
+(spec/def ::scm-username string?)
+
+(spec/def ::scm-password string?)
+
+(spec/def ::azure-scm-credentials
+  (spec/keys :req-un [::scm-username
+                      ::scm-password]))
+
+;; Command line and environment SCM credentials spec combined
+(spec/def ::azure-scm-credentials-map
+  (spec/keys :req-un [::azure-scm-credentials]))
+
 (defn add-env-credential-file
   "Add credential file from ENV to the credential map if defined."
   [credentials]
@@ -49,13 +63,26 @@
       (assoc credentials :azure-principal-file-env creds-env-file)
       credentials)))
 
+(defn add-env-scm-credentials
+  "Add SCM credentials from ENV to the credential map if they are not defined
+  on command line."
+  [credentials]
+  (let [scm-username (System/getenv "AZURE_SCM_USERNAME")
+        scm-password (System/getenv "AZURE_SCM_PASSWORD")]
+    (merge {:azure-scm-credentials-map {:scm-username scm-username
+                                        :scm-password scm-password}}
+           credentials))) ; let command line parameters override env
+
 (defn resolve-azure-credentials
   "Attempt to resolve the Azure credentials to use or fail.
-  The credentials are attempted to retrieve from:
+  The credentials for function deploy (FTP) are attempted to retrieve from:
   1. Command line parameters for id, domain and secret
   2. Command line parameter pointing to security principal
-  3. Environment variable pointing to security principal"
-  [initial-credentials]
+  3. Environment variable pointing to security principal.
+  For zipdeploy (HTTP) the credentials are attampted to retrieve from:
+  1. Command line parameters for SCM username and SCM password
+  2. Environment variables for AZURE_SCM_USERNAME and AZURE_SCM_PASSWORD"
+  ([initial-credentials]
   (let [credentials-with-env (add-env-credential-file initial-credentials)
         result (spec/conform ::azure-credentials credentials-with-env)]
     (if (spec/invalid? result)
@@ -64,21 +91,39 @@
                    (spec/explain-data ::azure-credentials credentials-with-env))
         (util/exit-error))
       result)))
+  ([function initial-credentials]
+   (if function ; Use FTP deploy for single function deployments
+     (resolve-azure-credentials initial-credentials)
+     (let [scm-credentials-with-env (add-env-scm-credentials initial-credentials)
+           result (spec/conform ::azure-scm-credentials-map
+                                scm-credentials-with-env)]
+       (if (spec/invalid? result)
+         (do
+           (util/fail "No valid Azure SCM credentials provided:\n%s"
+                      (spec/explain-data ::azure-scm-credentials-map
+                                         scm-credentials-with-env))
+           (util/exit-error))
+         result)))))
 
 (defn map-credentials
   "Map the command line credentials to the format spec expects.
   If any credential related information is given expect the others too."
-  [client-id client-domain client-secret principal-file]
-  (let [id-domain-secret (if (or client-id client-domain client-secret)
-                           {:azure-id-domain-secret {:client-id client-id
-                                                     :client-domain client-domain
-                                                     :client-secret client-secret}}
-                           {})
-        credentials (if principal-file
-                      (merge id-domain-secret
-                             {:azure-principal-file-parameter principal-file})
-                      id-domain-secret)]
-    credentials))
+  ([client-id client-domain client-secret principal-file]
+   ; No function defined so zipdeploy and scm-credentials not used
+   (map-credentials nil client-domain client-secret principal-file nil nil))
+  ([function client-id client-domain client-secret principal-file
+    scm-username scm-password]
+   (if (not function)
+     {:azure-scm-credentials {:scm-username scm-username :scm-password scm-password}}
+     (let [id-domain-secret (if (or client-id client-domain client-secret)
+                              {:azure-id-domain-secret {:client-id client-id
+                                                        :client-domain client-domain
+                                                        :client-secret client-secret}}
+                              {})]
+       (if principal-file
+         (merge id-domain-secret
+                {:azure-principal-file-parameter principal-file})
+         id-domain-secret)))))
 
 (c/deftask ^:private function-app
   "Generates fileset for cljs and deployment files from hedge.edn"
@@ -121,19 +166,33 @@
   (fail-if-false app-name "Application name (-a/--app-name) is required but not set")
   (fail-if-false rg-name "Resource group name (-r/--rg-name) is required but not set"))
 
-(c/deftask create-function-app
-  "Creates given function app"
-  [a app-name APP str "the app name"
-   r rg-name RGN str "the resource group name"]
-  (check-app-rg-names app-name rg-name)
-  (-> (azure)
-      .appServices
-      .functionApps
-      (.define app-name)
-      (.withRegion Region/EUROPE_NORTH)
-      (.withNewResourceGroup rg-name)
-      .create))
+(defn zipdeploy-url
+  [app-name]
+  (let [async ""] ;"?isAsync=true"]
+    (str "https://" app-name ".scm.azurewebsites.net/api/zipdeploy" async)))
 
+(defn zipdeploy
+  "Deploy a zip file with all the functions to Azure."
+  [app-name credentials zip-file-path]
+  (println "Zip file:" zip-file-path)
+  (let [zip-file (clojure.java.io/file zip-file-path)
+        options {:basic-auth [(:scm-username (:azure-scm-credentials credentials))
+                              (:scm-password (:azure-scm-credentials credentials))]
+                 :body (input-stream (file zip-file-path))}
+        {:keys [status body headers error]} @(http/post (zipdeploy-url app-name) options)]
+    (println "######## POST:" status error headers)
+    (when-not (= status 200)
+      (do
+        (util/fail "Error response from zipupload:%s\n%s\n%s\n" status error body)
+        (util/exit-error)))))
+
+(defn find-handlers-zip
+  [fs]
+  (reduce (fn [found-file element]
+            (println element)
+            (if (ends-with? (:path element) ".zip")
+              (str (:dir element) "/" (:path element))
+              found-file)) [] (vals (:tree (c/output-fileset fs)))))
 
 (defn split-path [path]
   (if (.contains path "/")
@@ -237,16 +296,31 @@
         credentials (resolve-azure-credentials credential-candidates)]
     (util/info (prn-str (publishing-profile rg-name app-name credentials)))))
 
+
+(c/deftask create-function-app
+  "Creates given function app"
+  [a app-name APP str "the app name"
+   r rg-name RGN str "the resource group name"]
+  (check-app-rg-names app-name rg-name)
+  (-> (azure)
+      .appServices
+      .functionApps
+      (.define app-name)
+      (.withRegion Region/EUROPE_NORTH)
+      (.withNewResourceGroup rg-name)
+      .create))
+
 (c/deftask ^:private deploy-to-azure
   "Deploy fileset to Azure"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
    c credentials CREDENTIALS code "Pre-resolved credentials map"]
   (c/with-pass-thru [fs]
-    (let [pprofile (publishing-profile rg-name app-name credentials)
-          ftp-profile (:ftp pprofile)]
-      (ftp-upload ftp-profile fs))))
-
+    (if (:azure-scm-credentials credentials)
+      (zipdeploy app-name credentials (find-handlers-zip fs))
+      (let [pprofile (publishing-profile rg-name app-name credentials)
+            ftp-profile (:ftp pprofile)]
+        (ftp-upload ftp-profile fs)))))
 
 (c/deftask ^:private compile-function-app
   "Build function app(s)"
@@ -257,7 +331,7 @@
    (function-app)
    (cljs :optimizations optimizations)))
 
-; FIXME: 
+; FIXME:
 ; * if optimizations :none inject :main option (is it even possible)
 ; * read :compiler-options from command line and merge with current config
 (c/deftask deploy-to-directory
@@ -266,10 +340,12 @@
    f function FUNCTION str "Function to compile"
    d directory DIR str "Directory to deploy into"]
   (when function (c/set-env! :function-to-build function))
-  (comp
-    (compile-function-app :optimizations (or optimizations :simple))
-    (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-    (target :dir #{(or directory "target")})))
+  (let [dir (or directory "target")]
+    (comp
+     (compile-function-app :optimizations (or optimizations :simple))
+     (sift :include #{#"\.out" #"\.edn" #"\.cljs" #"\.zip"} :invert true)
+     (zip :file "handlers.zip")
+     (target :dir #{dir}))))
 
 (c/deftask ^:private read-files
   "Read files from target directory into task fileset"
@@ -309,15 +385,20 @@
    p principal-file PRINCIPAL str "Azure principal file"
    i client-id CLIENT str "Azure client id"
    t tenant-id TENANT str "Azure tenant id"
-   s secret SECRET str "Azure client secret"]
+   s secret SECRET str "Azure client secret"
+   U scm-username USERNAME str "Username for the Azure SCM"
+   P scm-password PASSWORD str "Password for the Azure SCM"]
   (check-app-rg-names app-name rg-name)
   (when function (c/set-env! :function-to-build function))
-  (let [credential-candidates (map-credentials client-id tenant-id secret
-                                               principal-file)
-        credentials (resolve-azure-credentials credential-candidates)]
+  (let [credential-candidates (map-credentials function
+                                               client-id tenant-id secret
+                                               principal-file
+                                               scm-username scm-password)
+        credentials (resolve-azure-credentials function credential-candidates)]
     (comp
      (compile-function-app :optimizations (or optimizations :advanced))
-     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+     (sift :include #{#"\.out" #"\.edn" #"\.cljs" #"\.zip"} :invert true)
+     (zip :file "handlers.zip")
      (deploy-to-azure :app-name app-name :rg-name rg-name
                       :credentials credentials))))
 

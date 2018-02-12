@@ -101,7 +101,7 @@
        (let [ok     (ring->azure context codec)
              logfn (.-log context)
              result (handler (into (azure->ring req) {:log logfn}))]
-          
+
           (cond
             (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                            (go (ok (<! result))))
