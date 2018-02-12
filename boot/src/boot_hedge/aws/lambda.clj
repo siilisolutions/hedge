@@ -96,4 +96,5 @@
   "Generates files for build and deploy"
   (-> fs
     (generate-build-files conf :api)
-    (generate-build-files conf :timer)))
+    (generate-build-files conf :timer)
+    (generate-build-files conf :queue)))

@@ -105,8 +105,8 @@
 (defn ->aws-timer
   [callback]
   (fn [response]
-    (when (not (nil? response)) (warn "Cloudwatch does not handle function output: " response))
-    (callback nil response)))
+    (when (not (nil? response)) (warn "Response " response " not being handled"))
+    (callback)))
 
 (defn lambda-timer-function-wrapper
   "wrapper for AWS timer events"
@@ -116,6 +116,34 @@
        (trace (str "request: " (js->clj event)))
        (let [ok     (->aws-timer callback)
              result (handler (->hedge-timer event))]
+         (cond
+           (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
+                                            (go (ok (<! result))))
+            :else                       (ok result)))
+       (catch :default e (callback e nil))))))
+
+(defn ->hedge-queue
+  [event]
+  {:payload
+   (-> event
+    (oget "Records")
+    (goog.object/get 0)
+    (oget "Sns.Message"))}) ; TODO: parse transit
+
+(defn ->aws-queue
+  [callback]
+  (fn [response]
+    (when (not (nil? response)) (warn "Response " response " not being handled"))
+    (callback)))
+
+(defn lambda-queue-function-wrapper
+  "wrapper for AWS queue events"
+  ([handler]
+   (fn [event context callback]
+     (try
+       (trace (str "request: " (js->clj event)))
+       (let [ok     (->aws-queue callback)
+             result (handler (->hedge-queue event))]
          (cond
            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                             (go (ok (<! result))))
