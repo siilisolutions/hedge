@@ -243,9 +243,7 @@
 
     (if-let [json (get variants (-> cfg :type))]
       ; return
-      ;(do 
-        ;(clojure.pprint/pprint json) 
-        json ;)
+      json
       ; or throw expception
       (throw 
         (Exception. 
