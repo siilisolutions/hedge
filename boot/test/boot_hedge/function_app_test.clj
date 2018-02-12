@@ -4,34 +4,34 @@
   
 (def api-handler-config1
   {:type :api
-  :function {:handler 'my_cool_function.core/crunch-my-data :authorization :anonymous}
+  :function {:handler `my_cool_function.core/crunch-my-data :authorization :anonymous}
   :path "api1"})
 
 (def api-handler-config2
   {:type :api
-  :function {:handler 'my_cool_function.core/crunch-my-data :authorization :function}
+  :function {:handler `my_cool_function.core/crunch-my-data :authorization :function}
   :path "api2"})
 
 (def api-handler-config3
   {:type :api
-  :function {:handler 'my_cool_function.core/crunch-my-data}
+  :function {:handler `my_cool_function.core/crunch-my-data}
   :path "api3"})
 
 (def timer-handler-config
  {:type :timer
-  :function {:handler 'my_cool_function.core/timer-handler-broken :cron "*/10 * * * *"}
+  :function {:handler `my_cool_function.core/timer-handler-broken :cron "*/10 * * * *"}
   :path "timer2"})
 
 (def queue-handler-config 
   {:type :queue
-  :function {:handler 'my_cool_function.core/queuehandler
+  :function {:handler `my_cool_function.core/queuehandler
              :queue "myqueue"
              :connection "AzureWebJobsDashboard"}
   :path "queue1"})
 
 (def topic-queue-handler-config 
   {:type :queue
-  :function {:handler 'my_cool_function.core/queuehandler
+  :function {:handler `my_cool_function.core/queuehandler
              :queue "mytopic"
              :subscription "subscription"
              :accessRights "Manage"
@@ -40,11 +40,93 @@
 
 (def sb-queue-handler-config 
   {:type :queue
-  :function {:handler 'my_cool_function.core/queuehandler
+  :function {:handler `my_cool_function.core/queuehandler
               :queue "myqueue"
               :accessRights "Manage"
               :connection "AzureWebJobsDashboard"}
   :path "queue1"})
+
+(def inputs 
+  [{:type :table
+    :key "in1"
+    :name "inputTable"
+    :connection "AzureWebJobStorage"}
+    {:type :db
+    :key "in2"
+    :name "inputDb"
+    :collection "collection"
+    :connection "CosmosDBConnection"}])
+
+(def outputs
+  [{:type :queue
+    :key "out1"
+    :name "queue"
+    :connection "AzureWebJobsStorage"}
+    {:type :queue
+    :key "out2"
+    :accessRights "Manage"
+    :name "queue"
+    :connection "AzureWebJobsStorage"}
+    {:type :queue
+    :key "out3"
+    :topic true
+    :accessRights "Manage"
+    :name "queue"
+    :connection "AzureWebJobsStorage"}
+    {:type :db
+    :key "out4"
+    :name "db"
+    :collection "collection"
+    :connection "ConnectionString"}
+    {:type :table
+    :key "out5"
+    :name "table"
+    :connection "ConnectionString"}])
+
+(def http-trigger-multiple-inputs-outputs-config
+  {:type :api
+  :function {:handler `my_cool_function.core/crunch-my-data
+             :outputs outputs
+             :inputs inputs}
+  :path "api3"})
+
+(def timer-trigger-multiple-inputs-outputs-config
+  {:type :timer
+   :function {:handler `my_cool_function.core/crunch-my-data
+              :cron "* * * * *"
+              :outputs outputs
+              :inputs inputs}
+  :path "api3"})
+
+(def stqueue-trigger-multiple-inputs-outputs-config
+  {:type :queue
+   :function {:handler `my_cool_function.core/queuehandler
+              :queue "myqueue"
+              :connection "AzureWebJobsDashboard"
+              :outputs outputs
+              :inputs inputs}
+   :path "api3"})
+
+(def sbqueue-trigger-multiple-inputs-outputs-config
+  {:type :queue
+    :function {:handler `my_cool_function.core/queuehandler
+               :queue "myqueue"
+               :accessRights "Manage"
+               :connection "AzureWebJobsDashboard"
+               :outputs outputs
+               :inputs inputs}
+    :path "api3"})
+
+(def sbtopic-trigger-multiple-inputs-outputs-config
+  {:type :queue
+    :function {:handler `my_cool_function.core/queuehandler
+                :queue "myqueue"
+                :accessRights "Manage"
+                :subscription "subscription"
+                :connection "AzureWebJobsDashboard"
+                :outputs outputs
+                :inputs inputs}
+    :path "api3"})
 
 (deftest function-json-test
   (testing "symbol representing the function is normalized to URL compatible form"
@@ -89,3 +171,31 @@
         (is (= (-> json-sbqueue :bindings first :queueName) "myqueue"))
         (is (-> json-sbqueue :bindings first :accessRights))
         (is (nil? (-> json-sbqueue :bindings first :subscriptionName)))))))
+
+(deftest functions-with-inputs-outputs-test
+  (testing "Function.json generation for Azure with function inputs and outputs"
+    (let [api-cfg      (function-type->function-json http-trigger-multiple-inputs-outputs-config)
+          timer-cfg    (function-type->function-json timer-trigger-multiple-inputs-outputs-config)
+          st-queue-cfg (function-type->function-json stqueue-trigger-multiple-inputs-outputs-config)
+          sb-queue-cfg (function-type->function-json sbqueue-trigger-multiple-inputs-outputs-config)
+          sb-topic-cfg (function-type->function-json sbtopic-trigger-multiple-inputs-outputs-config)]
+
+      (is (= 1 (-> (filter (fn [x] (= "httpTrigger" (-> x :type))) (-> api-cfg :bindings)) count)))
+      (is (= 1 (-> (filter (fn [x] (= "timerTrigger" (-> x :type))) (-> timer-cfg :bindings)) count)))
+      (is (= 1 (-> (filter (fn [x] (= "queueTrigger" (-> x :type))) (-> st-queue-cfg :bindings)) count)))
+      (is (= 1 (-> (filter (fn [x] (= "serviceBusTrigger" (-> x :type))) (-> sb-queue-cfg :bindings)) count)))
+      (is (= 1 (-> (filter (fn [x] (= "serviceBusTrigger" (-> x :type))) (-> sb-topic-cfg :bindings)) count)))
+
+      ; 6 because api-cfg has http out output binding in excess to configured outputs
+      (is (= 6 (-> (filter (fn [x] (= "out" (-> x :direction))) (-> api-cfg :bindings)) count)))
+      (is (= 5 (-> (filter (fn [x] (= "out" (-> x :direction))) (-> timer-cfg :bindings)) count)))
+      (is (= 5 (-> (filter (fn [x] (= "out" (-> x :direction))) (-> st-queue-cfg :bindings)) count)))
+      (is (= 5 (-> (filter (fn [x] (= "out" (-> x :direction))) (-> sb-queue-cfg :bindings)) count)))
+      (is (= 5 (-> (filter (fn [x] (= "out" (-> x :direction))) (-> sb-topic-cfg :bindings)) count)))
+      
+      ; 3 because trigger is also an input
+      (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> api-cfg :bindings)) count)))
+      (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> timer-cfg :bindings)) count)))
+      (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> st-queue-cfg :bindings)) count)))
+      (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> sb-queue-cfg :bindings)) count)))
+      (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> sb-topic-cfg :bindings)) count))))))
