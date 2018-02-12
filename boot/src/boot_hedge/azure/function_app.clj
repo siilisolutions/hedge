@@ -74,66 +74,158 @@
     (spit  {:require [fns]}))
   dir)
 
+(defn output->binding
+  "returns the single binding for single output"
+  [output]
+  (match [(-> output :type) (-> output :topic) (-> output :accessRights)]
+    ; table storage queue
+    [:queue nil nil] {:type "queue"
+                      :name (-> output :key)
+                      :queueName (-> output :name)
+                      :connection (-> output :connection)
+                      :direction "out"}
+    ; servicebus queue
+    [:queue nil _]   {:type "serviceBus"
+                      :name (-> output :key)
+                      :queueName (-> output :name)
+                      :accessRights (-> output :accessRights)
+                      :connection (-> output :connection)
+                      :direction "out"}
+    ; servicebus topic queue
+    [:queue true _]  {:type "serviceBus"
+                      :name (-> output :key)
+                      :topicName (-> output :name)
+                      :accessRights (-> output :accessRights)
+                      :connection (-> output :connection)
+                      :direction "out"}
+    ; table storage table
+    [:table nil nil] {:type "table"
+                      :name (-> output :key)
+                      :tableName (-> output :name)
+                      :connection (-> output :connection)
+                      :direction "out"}
+    ; cosmosdb collection
+    [:db nil nil]    {:type "documentDB"
+                      :name (-> output :key)
+                      :databaseName (-> output :name)
+                      :collectionName (-> output :collection)
+                      :connection (-> output :connection)
+                      :createIfNotExists false
+                      :direction "out"}))
+
+(defn outputs->bindings
+  "adds outputs to function.json bindings"
+  [bindings cfg]
+  (if (-> cfg :function :outputs)
+    ; here we need to map different structures and types
+    (-> 
+      (concat  
+        (map output->binding (-> cfg :function :outputs)) 
+        bindings)
+      vec)    
+    ; else just pass the bindings
+    bindings))
+
+(defn input->binding 
+  "returns the single binding of given single input"
+  [input]
+  (match [(-> input :type)]
+    ; table storage table
+    [:table] {:type "table"
+              :tableName (-> input :name)
+              :name (-> input :key)
+              :connection (-> input :connection)
+              :direction "in"}
+    ; table storage table
+    [:db] {:type "documentDB"
+              :databaseName (-> input :name)
+              :collectionName (-> input :collection)
+              :name (-> input :key)
+              :connection (-> input :connection)
+              :direction "in"}))
+
+(defn inputs->bindings
+  "adds inputs to function.json bindings"
+  [bindings cfg]
+  (if (-> cfg :function :inputs)
+    ; here we need to map different structures and types
+    (-> 
+      (concat
+        (map input->binding (-> cfg :function :inputs)) 
+        bindings) 
+      vec)
+    ; else just pass the bindings
+    bindings))
+
 (defn function-json-for-api 
   "function.json constructor for function of type api (http in / http out)"
   [cfg]
-  {:bindings
-  [{:authLevel (name (if-let [authorization (-> cfg :function :authorization)] 
-                        authorization 
-                        :anonymous)),
-    :type "httpTrigger",
-    :direction "in",
-    :name "req"
-    :route (-> cfg :path)}
-    {:type "http", :direction "out", :name "$return"}],
-  :disabled false})
+  (let [trigger {:authLevel (name (if-let [authorization (-> cfg :function :authorization)] 
+                                        authorization 
+                                        :anonymous)),
+                 :type "httpTrigger",
+                 :direction "in",
+                 :name "req"
+                 :route (-> cfg :path)}]
+    {:bindings (-> 
+                 (outputs->bindings [trigger {:type "http", :direction "out", :name "$return"}] cfg)
+                 (inputs->bindings cfg))      
+    :disabled false}))
 
 (defn function-json-for-timer
   "function.json constructor for function of type timer (timer trigger in). 
   Generates the seconds field as zero."
   [cfg]
-   {:bindings 
-    [{:name "timer",
-      :type "timerTrigger",
-      :direction "in",
-      :schedule (str "0 " (-> cfg :function :cron))}],
-     :disabled false})
+  (let [trigger {:name "timer",
+                 :type "timerTrigger",
+                 :direction "in",
+                 :schedule (str "0 " (-> cfg :function :cron))}]
+   {:bindings (->
+                (outputs->bindings [trigger] cfg)
+                (inputs->bindings cfg))
+     :disabled false}))
 
 (defn function-json-for-storage-queue
   "function.json constructor for function of type storage queue."
   [cfg]
-  {:bindings
-   [{:name "message",
-     :type "queueTrigger",
-     :direction "in",
-     :queueName (-> cfg :function :queue),
-     :connection (-> cfg :function :connection)}],
-   :disabled false})
+  (let [trigger {:name "message",
+                 :type "queueTrigger",
+                 :direction "in",
+                 :queueName (-> cfg :function :queue),
+                 :connection (-> cfg :function :connection)}]
+  {:bindings (->
+              (outputs->bindings [trigger] cfg)
+              (inputs->bindings cfg))
+   :disabled false}))
 
 (defn function-json-for-servicebus-queue
   "function.json constructor for function of type service bus queue."
   [cfg]
-  {:bindings
-   [{:name "message",
-     :type "serviceBusTrigger",
-     :direction "in",
-     :queueName (-> cfg :function :queue),
-     :accessRights (-> cfg :function :accessRights),
-     :connection (-> cfg :function :connection)}],
-   :disabled false})
+  (let [trigger {:name "message",
+                 :type "serviceBusTrigger",
+                 :direction "in",
+                 :queueName (-> cfg :function :queue),
+                 :accessRights (-> cfg :function :accessRights),
+                 :connection (-> cfg :function :connection)}]
+  {:bindings (->
+              (outputs->bindings [trigger] cfg)
+              (inputs->bindings cfg))
+   :disabled false}))
 
 (defn function-json-for-servicebus-topic
   "function.json constructor for function of type service bus topic queue."
   [cfg]
-  {:bindings
-   [{:name "message",
-     :type "serviceBusTrigger",
-     :direction "in",
-     :topicName (-> cfg :function :queue),
-     :accessRights (-> cfg :function :accessRights),
-     :subscriptionName (-> cfg :function :subscription),
-     :connection (-> cfg :function :connection)}],
-   :disabled false})
+  (let [trigger {:name "message",
+                 :type "serviceBusTrigger",
+                 :direction "in",
+                 :topicName (-> cfg :function :queue),
+                 :accessRights (-> cfg :function :accessRights),
+                 :subscriptionName (-> cfg :function :subscription),
+                 :connection (-> cfg :function :connection)}]
+  {:bindings (-> 
+              (outputs->bindings [trigger] cfg)
+              (inputs->bindings cfg))
+   :disabled false}))
 
 (defn function-json-for-queue
   "decides between storage queue, servicebusqueue and servicebustopic depending on present parameters"
@@ -151,7 +243,9 @@
 
     (if-let [json (get variants (-> cfg :type))]
       ; return
-      json
+      ;(do 
+        ;(clojure.pprint/pprint json) 
+        json ;)
       ; or throw expception
       (throw 
         (Exception. 

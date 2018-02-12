@@ -46,7 +46,7 @@
   [context inputs]
   (into {} 
     (map 
-      (fn [input] {(-> input :key keyword) (oops/oget+ context (str "bindings." (-> input :key)))})
+      (fn [input] {(-> input :key keyword) (js->clj (oops/oget+ context (str "bindings." (-> input :key))))})
       inputs)))
 
 (defn outputs->bindings
