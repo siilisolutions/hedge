@@ -5,7 +5,9 @@
    [clojure.string :as str]
    [cheshire.core :refer [generate-stream]]
    [boot.filesystem :as fs]
-   [boot-hedge.common.core :as common]))
+   [boot-hedge.common.core :as common]
+   [clojure.spec.alpha :as spec]
+   [boot-hedge.common.validation :as validation]))
 
 (defn read-conf [fileset]
   (->> fileset
@@ -94,6 +96,10 @@
 
 (defn generate-files [conf fs]
   "Generates files for build and deploy"
+  {:pre [(if-let [result (spec/valid? ::validation/hedge-edn conf)]
+           result
+           (throw (AssertionError. (str "Failed when validating hedge.edn:\n" 
+                                        (spec/explain-data ::validation/hedge-edn conf)))))]}
   (-> fs
     (generate-build-files conf :api)
     (generate-build-files conf :timer)

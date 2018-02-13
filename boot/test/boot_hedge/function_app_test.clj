@@ -1,6 +1,7 @@
 (ns boot-hedge.function-app-test
     (:require [clojure.test :refer :all]
-              [boot-hedge.azure.function-app :refer :all]))
+              [boot-hedge.azure.function-app :refer :all]
+              [boot-hedge.common-test :refer [hedge-edn-input inputs outputs]]))
   
 (def api-handler-config1
   {:type :api
@@ -45,43 +46,6 @@
               :accessRights "Manage"
               :connection "AzureWebJobsDashboard"}
   :path "queue1"})
-
-(def inputs 
-  [{:type :table
-    :key "in1"
-    :name "inputTable"
-    :connection "AzureWebJobStorage"}
-    {:type :db
-    :key "in2"
-    :name "inputDb"
-    :collection "collection"
-    :connection "CosmosDBConnection"}])
-
-(def outputs
-  [{:type :queue
-    :key "out1"
-    :name "queue"
-    :connection "AzureWebJobsStorage"}
-    {:type :queue
-    :key "out2"
-    :accessRights "Manage"
-    :name "queue"
-    :connection "AzureWebJobsStorage"}
-    {:type :queue
-    :key "out3"
-    :topic true
-    :accessRights "Manage"
-    :name "queue"
-    :connection "AzureWebJobsStorage"}
-    {:type :db
-    :key "out4"
-    :name "db"
-    :collection "collection"
-    :connection "ConnectionString"}
-    {:type :table
-    :key "out5"
-    :name "table"
-    :connection "ConnectionString"}])
 
 (def http-trigger-multiple-inputs-outputs-config
   {:type :api
@@ -199,3 +163,16 @@
       (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> st-queue-cfg :bindings)) count)))
       (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> sb-queue-cfg :bindings)) count)))
       (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> sb-topic-cfg :bindings)) count))))))
+
+(deftest generate-files-precondition-fail-test
+  (testing "generate-files precondition failure (invalid hedge.edn) should stop execution"
+    (is (thrown? java.lang.AssertionError 
+                 ;when
+                 (generate-files {:api {:handler 123}} nil)))))
+
+(deftest generate-files-precondition-success-test
+  (testing "generate-files precondition success (valid hedge.edn) should not throw spec validation exception"
+    ; because no fileset mock is passed processing will fail on missing protocol implementation
+    (is (thrown? java.lang.IllegalArgumentException 
+                 ;when
+                 (generate-files hedge-edn-input nil)))))
