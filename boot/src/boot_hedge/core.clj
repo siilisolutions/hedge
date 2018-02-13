@@ -9,9 +9,11 @@
   identity)
 
 (c/deftask help
-  "Displays some help"
+  "Hedge Help"
   []
-  (println "Tasks marked with ** are main tasks for end-users"))
+  (println "\n\nTasks marked with ** are main tasks for end-users. You can find out more of a function by example:")
+  (println "$> boot azure/deploy --help")
+  (println ".. Would display help of function"))
 
 (defn init! [& {:keys [clouds]
                 :or {clouds SUPPORTED_CLOUDS}}]

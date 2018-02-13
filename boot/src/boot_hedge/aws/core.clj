@@ -112,7 +112,7 @@
 
 ; main tasks
 (c/deftask deploy-to-directory
-  "** Builds lambda(s), creates arteficts and stores output to target
+  "** Builds lambda(s), creates artefacts and stores output to target **
 
   Stores artefacts to given directory to to target directory if argument is missing.
 

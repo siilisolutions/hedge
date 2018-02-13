@@ -8,7 +8,11 @@
    [boot-hedge.common.core :refer [serialize-json 
                                    AZURE_FUNCTION 
                                    one-handler-config
-                                   one-handler-configs]]))
+                                   one-handler-configs]]
+   [clojure.spec.alpha :as spec]
+   [boot-hedge.common.validation :as validation]))
+
+(spec/check-asserts true)
 
 (defn read-conf [fileset]
   (->> fileset
@@ -279,6 +283,10 @@
   "Entry function for generating the output files. Takes hedge.edn as input.
   Launches generation of one function if :function-to-build is set."
   [edn-config fs]
+  {:pre [(if-let [result (spec/valid? ::validation/hedge-edn edn-config)]
+           result
+           (throw (AssertionError. (str "Failed when validating hedge.edn:\n" 
+                                        (spec/explain-data ::validation/hedge-edn edn-config)))))]}
   (if-let [handler (c/get-env :function-to-build)]
     ;then
     (generate-function fs (one-handler-config handler edn-config))

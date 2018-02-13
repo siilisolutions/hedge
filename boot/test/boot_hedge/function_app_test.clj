@@ -1,7 +1,13 @@
 (ns boot-hedge.function-app-test
     (:require [clojure.test :refer :all]
-              [boot-hedge.azure.function-app :refer :all]))
-  
+              [boot-hedge.azure.function-app :refer :all]
+              [boot-hedge.common-test :refer [hedge-edn-input inputs outputs]]
+              [scjsv.core :as v]))
+
+; function.json schema from http://json.schemastore.org/function
+(def function-dot-json-schema (slurp "resources/schema/function.json"))
+(def validate (v/validator function-dot-json-schema))
+
 (def api-handler-config1
   {:type :api
   :function {:handler `my_cool_function.core/crunch-my-data :authorization :anonymous}
@@ -34,7 +40,7 @@
   :function {:handler `my_cool_function.core/queuehandler
              :queue "mytopic"
              :subscription "subscription"
-             :accessRights "Manage"
+             :accessRights "manage"
              :connection "AzureWebJobsDashboard"}
   :path "queue1"})
 
@@ -42,46 +48,9 @@
   {:type :queue
   :function {:handler `my_cool_function.core/queuehandler
               :queue "myqueue"
-              :accessRights "Manage"
+              :accessRights "manage"
               :connection "AzureWebJobsDashboard"}
   :path "queue1"})
-
-(def inputs 
-  [{:type :table
-    :key "in1"
-    :name "inputTable"
-    :connection "AzureWebJobStorage"}
-    {:type :db
-    :key "in2"
-    :name "inputDb"
-    :collection "collection"
-    :connection "CosmosDBConnection"}])
-
-(def outputs
-  [{:type :queue
-    :key "out1"
-    :name "queue"
-    :connection "AzureWebJobsStorage"}
-    {:type :queue
-    :key "out2"
-    :accessRights "Manage"
-    :name "queue"
-    :connection "AzureWebJobsStorage"}
-    {:type :queue
-    :key "out3"
-    :topic true
-    :accessRights "Manage"
-    :name "queue"
-    :connection "AzureWebJobsStorage"}
-    {:type :db
-    :key "out4"
-    :name "db"
-    :collection "collection"
-    :connection "ConnectionString"}
-    {:type :table
-    :key "out5"
-    :name "table"
-    :connection "ConnectionString"}])
 
 (def http-trigger-multiple-inputs-outputs-config
   {:type :api
@@ -111,7 +80,7 @@
   {:type :queue
     :function {:handler `my_cool_function.core/queuehandler
                :queue "myqueue"
-               :accessRights "Manage"
+               :accessRights "manage"
                :connection "AzureWebJobsDashboard"
                :outputs outputs
                :inputs inputs}
@@ -121,7 +90,7 @@
   {:type :queue
     :function {:handler `my_cool_function.core/queuehandler
                 :queue "myqueue"
-                :accessRights "Manage"
+                :accessRights "manage"
                 :subscription "subscription"
                 :connection "AzureWebJobsDashboard"
                 :outputs outputs
@@ -145,6 +114,15 @@
             json-topic   (function-type->function-json topic-queue-handler-config)
             json-sbqueue (function-type->function-json sb-queue-handler-config)]
         
+        ; validate function.json data generated
+        (is (nil? (validate json-api1)))
+        (is (nil? (validate json-api2)))
+        (is (nil? (validate json-api3)))
+        (is (nil? (validate json-timer)))
+        (is (nil? (validate json-queue)))
+        (is (nil? (validate json-topic)))
+        (is (nil? (validate json-sbqueue)))
+
         (is (= (-> json-api1 :bindings first :type) "httpTrigger"))
         (is (= (-> json-api1 :bindings first :route) (-> "api1")))
         (is (= (-> json-api1 :bindings first :authLevel) "anonymous"))
@@ -180,6 +158,13 @@
           sb-queue-cfg (function-type->function-json sbqueue-trigger-multiple-inputs-outputs-config)
           sb-topic-cfg (function-type->function-json sbtopic-trigger-multiple-inputs-outputs-config)]
 
+      ; validate function.json data generated
+      (is (nil? (validate api-cfg)))
+      (is (nil? (validate timer-cfg)))
+      (is (nil? (validate st-queue-cfg)))
+      (is (nil? (validate sb-queue-cfg)))
+      (is (nil? (validate sb-topic-cfg)))
+
       (is (= 1 (-> (filter (fn [x] (= "httpTrigger" (-> x :type))) (-> api-cfg :bindings)) count)))
       (is (= 1 (-> (filter (fn [x] (= "timerTrigger" (-> x :type))) (-> timer-cfg :bindings)) count)))
       (is (= 1 (-> (filter (fn [x] (= "queueTrigger" (-> x :type))) (-> st-queue-cfg :bindings)) count)))
@@ -199,3 +184,16 @@
       (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> st-queue-cfg :bindings)) count)))
       (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> sb-queue-cfg :bindings)) count)))
       (is (= 3 (-> (filter (fn [x] (= "in" (-> x :direction))) (-> sb-topic-cfg :bindings)) count))))))
+
+(deftest generate-files-precondition-fail-test
+  (testing "generate-files precondition failure (invalid hedge.edn) should stop execution"
+    (is (thrown? java.lang.AssertionError 
+                 ;when
+                 (generate-files {:api {:handler 123}} nil)))))
+
+(deftest generate-files-precondition-success-test
+  (testing "generate-files precondition success (valid hedge.edn) should not throw spec validation exception"
+    ; because no fileset mock is passed processing will fail on missing protocol implementation
+    (is (thrown? java.lang.IllegalArgumentException 
+                 ;when
+                 (generate-files hedge-edn-input nil)))))
