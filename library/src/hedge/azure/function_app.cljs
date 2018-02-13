@@ -8,10 +8,12 @@
             [clojure.string :as str]
             [clojure.walk :as w]
             [taoensso.timbre :as timbre
-                       :refer (log  trace  debug  info  warn  error  fatal  report
-                               logf tracef debugf infof warnf errorf fatalf reportf
-                               spy get-env log-env)]
-            [hedge.azure.timbre-appender :refer [timbre-appender]]))
+                             :refer [log  trace  debug  info  warn  error  fatal  report
+                                     logf tracef debugf infof warnf errorf fatalf reportf
+                                     spy get-env log-env]]
+            [oops.core :as oops]
+            [hedge.azure.timbre-appender :refer [timbre-appender]]
+            [hedge.common :refer [outputs->atoms]]))
 
 
 (defprotocol Codec
@@ -39,6 +41,40 @@
     (if (some? header)
       (clean-fn header))))
 
+(defn bindings->inputs
+  "Context.bindings mapping for inputs"
+  [context inputs]
+  (into {} 
+    (map 
+      (fn [input] {(-> input :key keyword) (js->clj (oops/oget+ context (str "bindings." (-> input :key))))})
+      inputs)))
+
+(defn outputs->bindings
+   "bind outputs to bindings"
+   [context outputs]
+   (doseq [output outputs]   
+    (cond
+      ; write to queue
+      (= :queue (-> output val :type))
+        (oops/oset!+ 
+          context 
+          (str "bindings." (-> output val :key)) 
+          (clj->js @(-> output val :value)))
+      
+      ; write to cosmodb
+      (= :db (-> output val :type))
+        (oops/oset!+ 
+          context 
+          (str "bindings." (-> output val :key)) 
+          (js/JSON.stringify (clj->js @(-> output val :value))))
+
+      ; write to table storage
+      (= :table (-> output val :type))
+        (oops/oset!+ 
+          context
+          (str "bindings." (-> output val :key))
+          (clj->js @(-> output val :value))))))
+
 (defn azure->ring 
   [req]
   (let [r       (js->clj req)
@@ -55,12 +91,13 @@
      :headers         headers
      :body            (get r "body")}))  ; TODO: should use codec or smth probably to handle request body type
   
-(defn ring->azure [context codec]
-  (fn [raw-resp]
-    (trace (str "result: " raw-resp))
-    (if (string? raw-resp)
-      (.done context nil (clj->js {:body raw-resp}))
-      (.done context nil (clj->js raw-resp)))))
+(defn ring->azure [context & {:keys [outputs]}]
+(fn [raw-resp]
+  (trace (str "result: " raw-resp))
+  (outputs->bindings context outputs) ; persist outputs
+  (if (string? raw-resp)
+    (.done context nil (clj->js {:body raw-resp}))
+    (.done context nil (clj->js raw-resp)))))
 
 (defn azure->timer
   "Converts incoming timer trigger to Hedge timer handler"
@@ -70,9 +107,10 @@
 
 (defn timer->azure
   "Returns timers result to azure"
-  [context codec]
+  [context & {:keys [outputs]}]
   (fn [raw-resp]
     (trace (str "result: " raw-resp))
+    (outputs->bindings context outputs) ; persist outputs
     (.done context nil (clj->js raw-resp))))
 
 (defn azure->queue
@@ -83,68 +121,79 @@
 
 (defn queue->azure
   "Returns queue triggered handlers result to azure"
-  [context codec]
+  [context & {:keys [outputs]}]
   (fn [raw-resp]
     (trace (str "result: " raw-resp))
+    (outputs->bindings context outputs) ; persist outputs
     (.done context nil (clj->js raw-resp))))
 
 (defn azure-api-function-wrapper
   "wrapper used for http in / http out api function"
-  ([handler]
-   (azure-api-function-wrapper handler nil))
-  ([handler codec]
-   (fn [context req]
-     (try
-       (timbre/merge-config! {:appenders {:console nil}})
-       (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
-       (trace (str "request: " (js->clj req)))
-       (let [ok     (ring->azure context codec)
-             logfn (.-log context)
-             result (handler (into (azure->ring req) {:log logfn}))]
-
+  [handler & {:keys [inputs outputs]}]
+    (fn [context req]
+      (try
+        (timbre/merge-config! {:appenders {:console nil}})
+        (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
+        (trace (str "request: " (js->clj req)))
+        (def opatoms (outputs->atoms outputs))
+        (let [ok      (ring->azure context :outputs opatoms)
+              logfn   (.-log context)
+              result  (handler (into (azure->ring req) {:log logfn}) 
+                               :inputs (bindings->inputs context inputs) 
+                               :outputs opatoms)]
           (cond
             (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
-                                           (go (ok (<! result))))
+                                            (go (ok (<! result))))
             (string? result)             (ok {:body result})
             :else                        (ok result)))
-       (catch :default e (.done context e nil))))))
+        (catch :default e 
+          (do 
+            (error e) 
+            (.done context e nil))))))
 
 (defn azure-timer-function-wrapper
   "wrapper used for timer-triggered function"
-  ([handler]
-    (azure-timer-function-wrapper handler nil))
-  ([handler codec]
+  [handler & {:keys [inputs outputs]}]
     (fn [context timer]
       (try 
         (timbre/merge-config! {:appenders {:console nil}})
         (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
         (trace (str "timer: " (js->clj timer)))
-        (let [ok     (timer->azure context codec)
+        (def opatoms (outputs->atoms outputs))
+        (let [ok     (timer->azure context :outputs opatoms)
               logfn  (.-log context)
-              result (handler (into (azure->timer timer) {:log logfn}))]
-
+              result (handler (into (azure->timer timer) {:log logfn})
+                              :inputs (bindings->inputs context inputs) 
+                              :outputs opatoms)]
           (cond
             (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                            (go (ok (<! result))))
             :else                        (ok result)))
-        (catch :default e (.done context e nil))))))
+        (catch :default e 
+          (do 
+            (error e) 
+            (.done context e nil))))))
 
 (defn azure-queue-function-wrapper
   "wrapper used for timer-triggered function"
-  ([handler]
-    (azure-queue-function-wrapper handler nil))
-  ([handler codec]
+  [handler & {:keys [inputs outputs]}]
     (fn [context message]
       (try 
         (timbre/merge-config! {:appenders {:console nil}})
         (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
         (trace (str "message: " (js->clj message)))
-        (let [ok     (queue->azure context codec)
+        (def opatoms (outputs->atoms outputs))
+        (let [ok     (queue->azure context :outputs opatoms)
               logfn  (.-log context)
-              result (handler (into (azure->queue message) {:log logfn}))]
+              result (handler (into (azure->queue message) {:log logfn})
+                                    :inputs (bindings->inputs context inputs) 
+                                    :outputs opatoms)]
 
           (cond
             (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                             (go (ok (<! result))))
             :else                        (ok result)))
-        (catch :default e (.done context e nil))))))
+        (catch :default e 
+          (do
+            (error e)
+            (.done context e nil))))))

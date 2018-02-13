@@ -32,6 +32,7 @@ Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/lega
 1. Preparing Hedge Authentication Against Azure
 1. Authentication for AWS
 1. Supported Handler Types
+1. Input/Output Bindings
 1. Basic Serverless Function Project Structure
 1. hedge.edn
 1. Handler signatures
@@ -117,6 +118,19 @@ Other handler types are planned.
 
 Notes on Azure handlers: In Azure you can configure the output to be passed as return value to other Azure services (i.e. queue, table storage etc).
 
+### Input/Output Bindings
+
+Hedge can abstract Inputs and Outputs similair to Azure. A function can have a variable amount of input and output bindings.
+Inputs are passed to the function on invocation and outputs are persisted on function succesfull complete (unless *nil*). Depending on configuration, you can use different implementations (if available) with same abstraction.
+
+| **type** | **Input**       | **Output**      | **Azure**        | **AWS** |
+|----------|-----------------|-----------------|------------------|---------|
+| :queue   |    n/a          |  Queue          | Storage Queue    |         |
+| :queue   |    n/a          |  Queue          | ServiceBus Queue |         |
+| :queue   |    n/a          |  Queue          | ServiceBus Topic |         |
+| :table   | Key-Value Store | Key-Value Store | Table Storage    |         |
+| :db      | Database        | Database        | CosmosDB         |         |
+
 ### Basic Serverless Project Structure
 
 A basic structure can be found in one of the examples in [AWS example](https://github.com/jikuja/hedge-example-aws) or [Azure example](https://github.com/jikuja/hedge-example-azure) repositories.
@@ -189,6 +203,48 @@ Storage Queue polling frequency and servicebus queue settings for the function a
 
 Please note you must create the queues/topics yourself (you can do it through the portal or use Azure Storage Explorer with storage Queues).
 
+**Define Function Inputs and Outputs in hedge.edn:**
+
+Please note **:connection** is Azure specific Function App Setting (env variable) that contains the connection string. In Azure you can specify target Queue implementation, see below.  
+
+```
+{:api {"api1" {:handler my_cool_function.core/crunch-my-data :authorization :anonymous}
+               :inputs [{:type :table
+                         :key "in1"
+                         :name "inputTable"
+                         :connection "AzureWebJobStorage"}
+                       {:type :db
+                         :key "in2"
+                         :name "inputDb"
+                         :collection "collection"
+                         :connection "CosmosDBConnection"}]
+               :outputs [{:type :queue
+                          :key "out1"
+                          :name "queue"
+                          :connection "AzureWebJobsStorage"}
+                         {:type :queue
+                          :key "out2"
+                          :accessRights "Manage"
+                          :name "queue"
+                          :connection "SBQueueConnection"}
+                         {:type :queue
+                          :key "out3"
+                          :topic true
+                          :accessRights "Manage"
+                          :name "queue"
+                          :connection "SBTopicConnection"}
+                         {:type :db
+                          :key "out4"
+                          :name "db"
+                          :collection "collection"
+                          :connection "ConnectionString"}
+                         {:type :table
+                          :key "out5"
+                          :name "table"
+                          :connection "ConnectionString"}]
+
+```
+
 ### Handler signatures
 
 Short examples on handler signatures:
@@ -208,6 +264,44 @@ Short examples on handler signatures:
     "message contains the message payload, return can be passed to function output i.e. other wired service"
     [message]
     "Hello World!)
+```
+
+If you are using inputs and outputs, you can currently use any of the following signature additions on any type of handler:
+
+```
+(defn api-handler-with-inputs
+    "req contains the incoming http request, inputs contains a map of given inputs described in hedge.edn"
+    [req & {:keys [inputs]}]
+    (info 
+        "Read table from table storage: " 
+        (-> inputs :in1))
+    "This goes as return value to HTTP response")
+
+(defn api-handler-with-outputs
+    "req contains the incoming http request, outputs contain a map of atoms for given outputs defined in hedge.edn"
+    [req & {:keys [outputs]}]
+
+    ; write two messages to storage queue (mapped as :out1)
+    (reset! (-> outputs :out1 :value) [{:message {:id "1" :content "hello world"}} {:message {:id "2" :content "hello again"}}])
+    ; one message to servicebus queue (Azure only)
+    (reset! (-> outputs :out2 :value) {:message {:id "1" :content "hello world"}})
+    ; two messages to to servicebus topic (Azure only)
+    (reset! (-> outputs :out3 :value) [{:message {:id "1" :content "hello world"}} {:message {:id "2" :content "hello again"}}])
+    ; to db (example with two rows)
+    (reset! (-> outputs :out4 :value) [{:name "John Doe" 
+                                        :address "123 Hollywood"}
+                                       {:name "Jane Doe" 
+                                        :address "123 Hollywood"
+                                        :info "available}])
+
+    ; write row to table storage (mapped as :out5)
+    (reset! (-> outputs :out5 :value) {:PartitionKey "partitionkey-1" :RowKey "rowkey-1 :value "A value stored."})
+    "This goes as return value to HTTP response")
+
+(defn api-handler-with-inputs-and-outputs
+    [req & {:keys [inputs outputs]}]
+    ; as above
+    "This goes as return value to HTTP response")
 ```
 
 See examples for more usage patterns.
