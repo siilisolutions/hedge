@@ -26,7 +26,7 @@
 (spec/def ::subscription ::no-ws)
 
 ; accessRights (if used, defines servicebus instead of storage queue in azure)
-(spec/def ::accessRights #{"Listen" "Manage"})
+(spec/def ::accessRights #{"listen" "manage"})
 
 ; name of azure cosmosdb collection
 (spec/def ::collection ::no-ws)

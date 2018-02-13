@@ -285,7 +285,8 @@
   [edn-config fs]
   {:pre [(if-let [result (spec/valid? ::validation/hedge-edn edn-config)]
            result
-           (throw (AssertionError. (str "Failed validating hedge.edn: \n" (spec/explain-data ::validation/hedge-edn edn-config)))))]}
+           (throw (AssertionError. (str "Failed when validating hedge.edn:\n" 
+                                        (spec/explain-data ::validation/hedge-edn edn-config)))))]}
   (if-let [handler (c/get-env :function-to-build)]
     ;then
     (generate-function fs (one-handler-config handler edn-config))

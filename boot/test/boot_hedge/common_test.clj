@@ -24,13 +24,13 @@
     :connection "AzureWebJobsStorage"}
     {:type :queue
     :key "out2"
-    :accessRights "Manage"
+    :accessRights "manage"
     :name "queue"
     :connection "AzureWebJobsStorage"}
     {:type :queue
     :key "out3"
     :topic true
-    :accessRights "Manage"
+    :accessRights "manage"
     :name "queue"
     :connection "AzureWebJobsStorage"}
     {:type :db

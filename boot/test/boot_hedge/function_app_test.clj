@@ -1,8 +1,13 @@
 (ns boot-hedge.function-app-test
     (:require [clojure.test :refer :all]
               [boot-hedge.azure.function-app :refer :all]
-              [boot-hedge.common-test :refer [hedge-edn-input inputs outputs]]))
-  
+              [boot-hedge.common-test :refer [hedge-edn-input inputs outputs]]
+              [scjsv.core :as v]))
+
+; function.json schema from http://json.schemastore.org/function
+(def function-dot-json-schema (slurp "resources/schema/function.json"))
+(def validate (v/validator function-dot-json-schema))
+
 (def api-handler-config1
   {:type :api
   :function {:handler `my_cool_function.core/crunch-my-data :authorization :anonymous}
@@ -35,7 +40,7 @@
   :function {:handler `my_cool_function.core/queuehandler
              :queue "mytopic"
              :subscription "subscription"
-             :accessRights "Manage"
+             :accessRights "manage"
              :connection "AzureWebJobsDashboard"}
   :path "queue1"})
 
@@ -43,7 +48,7 @@
   {:type :queue
   :function {:handler `my_cool_function.core/queuehandler
               :queue "myqueue"
-              :accessRights "Manage"
+              :accessRights "manage"
               :connection "AzureWebJobsDashboard"}
   :path "queue1"})
 
@@ -75,7 +80,7 @@
   {:type :queue
     :function {:handler `my_cool_function.core/queuehandler
                :queue "myqueue"
-               :accessRights "Manage"
+               :accessRights "manage"
                :connection "AzureWebJobsDashboard"
                :outputs outputs
                :inputs inputs}
@@ -85,7 +90,7 @@
   {:type :queue
     :function {:handler `my_cool_function.core/queuehandler
                 :queue "myqueue"
-                :accessRights "Manage"
+                :accessRights "manage"
                 :subscription "subscription"
                 :connection "AzureWebJobsDashboard"
                 :outputs outputs
@@ -109,6 +114,15 @@
             json-topic   (function-type->function-json topic-queue-handler-config)
             json-sbqueue (function-type->function-json sb-queue-handler-config)]
         
+        ; validate function.json data generated
+        (is (nil? (validate json-api1)))
+        (is (nil? (validate json-api2)))
+        (is (nil? (validate json-api3)))
+        (is (nil? (validate json-timer)))
+        (is (nil? (validate json-queue)))
+        (is (nil? (validate json-topic)))
+        (is (nil? (validate json-sbqueue)))
+
         (is (= (-> json-api1 :bindings first :type) "httpTrigger"))
         (is (= (-> json-api1 :bindings first :route) (-> "api1")))
         (is (= (-> json-api1 :bindings first :authLevel) "anonymous"))
@@ -143,6 +157,13 @@
           st-queue-cfg (function-type->function-json stqueue-trigger-multiple-inputs-outputs-config)
           sb-queue-cfg (function-type->function-json sbqueue-trigger-multiple-inputs-outputs-config)
           sb-topic-cfg (function-type->function-json sbtopic-trigger-multiple-inputs-outputs-config)]
+
+      ; validate function.json data generated
+      (is (nil? (validate api-cfg)))
+      (is (nil? (validate timer-cfg)))
+      (is (nil? (validate st-queue-cfg)))
+      (is (nil? (validate sb-queue-cfg)))
+      (is (nil? (validate sb-topic-cfg)))
 
       (is (= 1 (-> (filter (fn [x] (= "httpTrigger" (-> x :type))) (-> api-cfg :bindings)) count)))
       (is (= 1 (-> (filter (fn [x] (= "timerTrigger" (-> x :type))) (-> timer-cfg :bindings)) count)))
