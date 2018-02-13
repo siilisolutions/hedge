@@ -110,7 +110,7 @@
   If any credential related information is given expect the others too."
   ([client-id client-domain client-secret principal-file]
    ; No function defined so zipdeploy and scm-credentials not used
-   (map-credentials nil client-domain client-secret principal-file nil nil))
+   (map-credentials true client-id client-domain client-secret principal-file nil nil))
   ([function client-id client-domain client-secret principal-file
     scm-username scm-password]
    (if (not function)
@@ -375,9 +375,11 @@
 ; FIXME: check env. variables for deployment
 (c/deftask deploy-azure
   "Build and deploy function app(s).
-  Either client-id, tenant-id and secret or a principal file has to be provided.
-  The principal file can be provided using the -p/--principal-file parameter or
-  via AZURE_AUTH_LOCATION environment variable."
+  For deploying individual function either client-id, tenant-id and secret or a
+  principal file has to be provided. The principal file can be provided using
+  the -p/--principal-file parameter or via AZURE_AUTH_LOCATION environment
+  variable.
+  Deploying everything is done using zipdeploy and requires deployment credentials"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
    f function FUNCTION str "Function to deploy"
