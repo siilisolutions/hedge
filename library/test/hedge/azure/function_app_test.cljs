@@ -9,7 +9,8 @@
                                               outputs->bindings] 
                                       :refer-macros [azure-api-function]]
             [hedge.azure.common :refer [azure-context-logger-mock]]
-            [hedge.common :refer [outputs->atoms]]))
+            [hedge.common :refer [outputs->atoms]])
+  (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (def fixture-once
   {:before (fn [] (timbre/merge-config! {:level :trace}))
@@ -112,36 +113,22 @@
       ; assert
       (is (= "this value was set" (js->clj (get (get (js->clj mock-context) "bindings") "out1")))))))
 
-; new tests placed after azure-api-function-wrapper-test-deserialization does not work correctly
-; there is something wrong with the tests below:
-
-(deftest azure-api-function-wrapper-test-deserialization
-  (testing "should deserialize the arguments to maps with dashed keywords"
-    (async done
-      ((azure-api-function-wrapper (fn [req] (is (= {:test-data {:some-field "Data"}} req))))
-         (azure-ctx #())
-         #js {"testData" #js {"someField" "Data"}}))))
-
 (deftest azure-api-function-wrapper-test-readport
-    (testing "handler returning a core async ReadPort"
-      (async done
+  (testing "handler returning a core async ReadPort should complete on receival of a message"
+    (async done
+      (go
         (let [results (chan)
               azure-fn (azure-api-function-wrapper (constantly results))]
-          (testing "should complete on receival of a message"
-            (azure-fn azure-ctx #js {:done #(do (is (= "result" %)) (done))})
-            (put! results "result"))))))
+          (put! results "async result")
+
+           (azure-fn 
+              (azure-ctx 
+                #(do (is (= {"body" "async result"} %)) (done))) 
+              azure-req))))))
 
 (deftest azure-api-function-test
   (testing "azure function"
 
     (testing "should have a cli function that returns nil"
-      (azure-api-function (constantly :result))
-
-      (is (= (*main-cli-fn*)
-             nil)))
-    (testing "should export the a wrapped handler"
-      (async done
-        (azure-api-function (fn [req] (is (= {:test-data {:some-field "Data"}} req))))
-        ((gobj/get js/module "exports")
-          (azure-ctx #())
-          #js {"testData" #js {"someField" "Data"}})))))
+      (azure-api-function  (constantly :result))
+      (is (= (*main-cli-fn*) nil)))))

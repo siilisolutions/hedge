@@ -125,7 +125,6 @@
   (fn [raw-resp]
     (trace (str "result: " raw-resp))
     (outputs->bindings context outputs) ; persist outputs
-    (trace (str "result: " raw-resp))
     (.done context nil (clj->js raw-resp))))
 
 (defn azure-api-function-wrapper
