@@ -22,22 +22,22 @@
         ensure-valid-cron
         (generate-files fs))))
 
-(c/deftask ^:private upload-artefact
+(c/deftask ^:private upload-artifact
   "Uploads functions-*.zip to S3"
   [n stack-name STACK_NAME str "Stack name"]
   (c/with-pass-thru [fs]
     (let [client (s3-api/client)
           bucket (str "hedge-" stack-name "-deploy")
-          artefact (->> fs
+          artifact (->> fs
                         (c/input-files)
                         (c/by-re #{#"functions-[0-9]*.zip"})
                         (first)
                         (c/tmp-file))
-          name (.getName artefact)]
+          name (.getName artifact)]
       (u/info (str "Ensuring bucket " bucket " exists\n"))
       (s3-api/ensure-bucket client bucket)
       (u/info (str "Uploading " name " into bucket " bucket "\n"))
-      (s3-api/put-object client bucket name artefact))))
+      (s3-api/put-object client bucket name artifact))))
 
 (c/deftask ^:private deploy-stack
   "Deploys stack to AWS using Cloudformation template and functions-*.zip in S3"
@@ -49,13 +49,13 @@
                        (c/by-name #{"cloudformation.json"})
                        (first)
                        (c/tmp-file))
-          artefact (->> fs
+          artifact (->> fs
                         (c/input-files)
                         (c/by-re #{#"functions-[0-9]*.zip"})
                         (first)
                         (c/tmp-file))
           bucket (str "hedge-" stack-name "-deploy")
-          key (.getName artefact)]
+          key (.getName artifact)]
       (u/info "Deploying to AWS\n")
       (cf-api/deploy-stack client stack-name cf-file bucket key))))
 
@@ -63,12 +63,12 @@
   "Uploads functions-*.zip and deploys using Cloudformation"
   [n stack-name STACK str "Name of the stack"]
   (comp
-   (upload-artefact :stack-name stack-name)
+   (upload-artifact :stack-name stack-name)
    (deploy-stack :stack-name stack-name)))
 
 (c/deftask build
   "Build lambda(s)"
-  [O optimizations LEVEL kw "The optimization level."]
+  [O optimizations LEVEL kw "The optimization level (optional)"]
   (c/task-options!
    cljs #(assoc-in % [:compiler-options :target] :nodejs))
   (c/task-options!
@@ -88,8 +88,8 @@
           (cf/write-template-file tmp-file))
       (-> fs (c/add-resource tmp) c/commit!))))
 
-(c/deftask create-artefacts
-  "Creates artefacts"
+(c/deftask create-artifacts
+  "Creates artifacts"
   []
   (let [zipfile (str "functions-" (date->unixts (now)) ".zip")]
     (comp
@@ -97,12 +97,12 @@
       (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
       (zip :file zipfile))))
 
-(c/deftask build-and-create-artefacts
-  "Build lambdas and create artefacts"
-  [O optimizations LEVEL kw "The optimization level"]
+(c/deftask build-and-create-artifacts
+  "Build lambdas and create artifacts"
+  [O optimizations LEVEL kw "The optimization level (optional)"]
   (comp
     (build :optimizations (or optimizations :simple))
-    (create-artefacts)))
+    (create-artifacts)))
 
 (c/deftask read-files
   "Read files from target directory into task fileset"
@@ -112,9 +112,9 @@
 
 ; main tasks
 (c/deftask deploy-to-directory
-  "** Builds lambda(s), creates artefacts and stores output to target **
+  "** Builds lambda(s), creates artifacts and stores output to target **
 
-  Stores artefacts to given directory to to target directory if argument is missing.
+  Stores artifacts to given directory to to target directory if argument is missing.
 
   Note: -f is currently for debugging only and it will create artifacts which are
   not compatible with deployment commands."
@@ -125,7 +125,7 @@
   (when function (do (c/set-env! :function-to-build function)
                    (u/warn "Note: output of this task when using -f flag is not compatible with deploy-from-directory task")))
   (comp
-    (build-and-create-artefacts :optimizations optimizations)
+    (build-and-create-artifacts :optimizations optimizations)
     (target :dir #{(or directory "target")})))
 
 (c/deftask deploy-from-directory
@@ -155,5 +155,5 @@
   (if (nil? stack-name)
     (throw (Exception. "Missing stack name"))
     (comp
-     (build-and-create-artefacts :optimizations optimizations)
+     (build-and-create-artifacts :optimizations optimizations)
      (upload-and-deploy :stack-name stack-name))))

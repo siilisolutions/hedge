@@ -71,10 +71,10 @@
                                                                   ::outputs])))
 
 (spec/def :handler/queue (spec/map-of string? (spec/keys :req-un [::handler
-                                                                  ::queue 
-                                                                  ::connection]
+                                                                  ::queue] 
                                                          :opt-un [::inputs
                                                                   ::outputs
+                                                                  ::connection
                                                                   ::subscription
                                                                   ::accessRights])))
 
