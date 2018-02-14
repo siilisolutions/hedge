@@ -1,5 +1,6 @@
 (ns boot-hedge.aws.cloudformation-api
-  (:require [boot-hedge.common.core :refer [now]])
+  (:require [boot-hedge.common.core :refer [now]]
+            [camel-snake-kebab.core :refer [->camelCaseString ->PascalCase]])
   (:import [com.amazonaws.services.cloudformation AmazonCloudFormationClientBuilder]
            [com.amazonaws.regions Regions]
            [com.amazonaws.services.cloudformation.model DescribeStacksRequest]
@@ -9,6 +10,7 @@
            [com.amazonaws.services.cloudformation.model ChangeSetType]
            [com.amazonaws.services.cloudformation.model ExecuteChangeSetRequest]
            [com.amazonaws.services.cloudformation.model Capability]
+           [com.amazonaws.services.cloudformation.model Parameter]
            [com.amazonaws.waiters WaiterParameters]
            [com.amazonaws.util DateUtils]))
 
@@ -113,7 +115,7 @@
 ;logic
 (defn create-or-update-stack
   "Construct stack create or update request and starts creation process"
-  [client stack-name template type]
+  [client stack-name template type parameters]
   (let [description (str "Created with Hedge at " (DateUtils/formatISO8601Date (now)))
         create-or-update-stack-request 
         (-> (CreateChangeSetRequest.)
@@ -122,25 +124,41 @@
           (.withCapabilities ["CAPABILITY_IAM"])     ; TODO use types from SDK
           (.withChangeSetType type)
           (.withDescription description)
-          (.withTemplateBody template))]
+          (.withTemplateBody template)
+          (.withParameters parameters))]
     (create-changeset client create-or-update-stack-request)))
 
 (defn create-stack
   "Create new stack"
-  [client stack-name template]
-  (create-or-update-stack client stack-name template ChangeSetType/CREATE))
+  [client stack-name template parameters]
+  (create-or-update-stack client stack-name template ChangeSetType/CREATE parameters))
 
 (defn update-stack
   "Update stack"
-  [client stack-name template]
-  (create-or-update-stack client stack-name template ChangeSetType/UPDATE))
+  [client stack-name template parameters]
+  (create-or-update-stack client stack-name template ChangeSetType/UPDATE parameters))
+
+; TODO: simplify this?
+(defn parameters
+  [& params]
+  (let [parameters (apply hash-map params)
+        temp (map (fn [[key val]] (-> (Parameter.)
+                                      (.withParameterKey key)
+                                      (.withParameterValue val)))
+                  parameters)]
+    temp))
 
 (defn deploy-stack
   "Create or deploy stack with given name and template"
-  [client stack-name template]
+  [client stack-name template bucket key]
   (let [template-string (slurp template)
         stack-exists (stack-exists? client stack-name)
-        create-changeset-result ((if stack-exists update-stack create-stack) client stack-name template-string)
+        parameters-for-deploy (parameters "FunctionDeploymentBucket" bucket 
+                                          "FunctionDeploymentKey" key
+                                          "PrettyDeploymentName" stack-name
+                                          "DeploymentName" (->PascalCase stack-name))
+        create-changeset-result ((if stack-exists update-stack create-stack) 
+                                 client stack-name template-string parameters-for-deploy)
         changeset-id (.getId create-changeset-result)]
     (wait-for-changeset-create client changeset-id)
     (execute-changeset client changeset-id)

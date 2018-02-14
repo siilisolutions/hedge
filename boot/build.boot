@@ -1,6 +1,6 @@
 (set-env! :source-paths #{"test"}
           :resource-paths #{"src"}
-          :dependencies '[[org.clojure/clojure "1.8.0"]
+          :dependencies '[[org.clojure/clojure "1.9.0"]
                           [boot/core "2.7.2" :scope "provided"]
                           [adzerk/boot-cljs "2.1.4"]
                           [cheshire "5.8.0"]
@@ -12,12 +12,14 @@
                           [com.velisco/clj-ftp "0.3.9"]
                           [adzerk/bootlaces "0.1.13" :scope "test"]
                           [adzerk/boot-test "1.2.0" :scope "test"]
-                          [proto-repl "0.3.1"]])
+                          [proto-repl "0.3.1"]
+                          [org.clojure/core.match "0.3.0-alpha5"]
+                          [metosin/scjsv "0.4.0" :scope "test"]])
 
 (require '[adzerk.bootlaces :refer :all])
 (require '[adzerk.boot-test :refer :all])
 
-(def +version+ "0.0.4")
+(def +version+ "0.1.0")
 
 (bootlaces! +version+)
 

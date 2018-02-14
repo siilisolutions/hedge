@@ -9,8 +9,8 @@
             (set-env!
              :source-paths #{"src"}
              :resource-paths  #{"resources"}
-             :dependencies '[[siili/boot-hedge "0.0.4" :scope "test"]
-                             [siili/hedge "0.0.4"]])
+             :dependencies '[[siili/boot-hedge "0.1.0" :scope "test"]
+                             [siili/hedge "0.1.0"]])
 
             (require
             '[boot-hedge.core :refer :all]))
@@ -39,5 +39,5 @@
 
 (def boot-props
 "BOOT_CLOJURE_NAME=org.clojure/clojure
-BOOT_CLOJURE_VERSION=1.8.0
+BOOT_CLOJURE_VERSION=1.9.0
 BOOT_VERSION=2.7.2")

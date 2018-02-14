@@ -4,7 +4,10 @@
    [boot.util          :as util]
    [clojure.string :as str]
    [cheshire.core :refer [generate-stream]]
-   [boot.filesystem :as fs]))
+   [boot.filesystem :as fs]
+   [boot-hedge.common.core :as common]
+   [clojure.spec.alpha :as spec]
+   [boot-hedge.common.validation :as validation]))
 
 (defn read-conf [fileset]
   (->> fileset
@@ -42,20 +45,20 @@
     "__"
     (dashed-alphanumeric (name handler))))
 
-; TODO: parametrize output's lambda-apigw-function
-(defn generate-source [fs {:keys [handler]}]
+(defn generate-source [fs {:keys [handler]} type]
   "Generates multiple source files with rules read from hedge.edn"
   (let [handler-ns (symbol (namespace handler))
         handler-func (symbol (name handler))
         func-ns (hedge-ns fs handler-ns)
         tgt (c/tmp-dir!)
-        ff (clojure.java.io/file tgt (ns-file func-ns))]
+        ff (clojure.java.io/file tgt (ns-file func-ns))
+        wrapper (type common/AWS_FUNCTIONS)]
     (doto ff
       clojure.java.io/make-parents
-      (spit `(~'ns ~func-ns (:require [hedge.aws.function-app :refer-macros [~'lambda-apigw-function]]
-                                     [~handler-ns :as ~'handler])))
+      (spit `(~'ns ~func-ns (:require [hedge.aws.function-app :refer-macros [~wrapper]]
+                                      [~handler-ns :as ~'handler])))
       (spit `(~'enable-console-print!) :append true)
-      (spit `(~'lambda-apigw-function ~(symbol (str 'handler "/" handler-func))) :append true))
+      (spit `(~wrapper ~(symbol (str 'handler "/" handler-func))) :append true))
     (clojure.pprint/pprint (slurp ff))
     {:fs (-> fs (c/add-source tgt) c/commit!)
      :func func-ns
@@ -77,20 +80,27 @@
         (generate-cljs-edn func))
     (-> fs (c/add-source tgt) c/commit!)))
 
-(defn generate-function [f]
-  (fn [fs [path func]]
+(defn generate-function [type]
+  (fn
+    [fs [path func]]
     (->
-      (f fs func)
+      (generate-source fs func type)
       generate-js-func-compile)))
 
 (defn generate-build-files
   "Generates wrapped source codes and edn files for build"
-  [fs conf key f]
+  [fs conf type]
   (if (c/get-env :function-to-build)
-    (reduce (generate-function f) fs (select-keys (key conf) [(c/get-env :function-to-build)]))
-    (reduce (generate-function f) fs (key conf))))
+    (reduce (generate-function type) fs (select-keys (type conf) [(c/get-env :function-to-build)]))
+    (reduce (generate-function type) fs (type conf))))
 
 (defn generate-files [conf fs]
   "Generates files for build and deploy"
+  {:pre [(if-let [result (spec/valid? ::validation/hedge-edn conf)]
+           result
+           (throw (AssertionError. (str "Failed when validating hedge.edn:\n" 
+                                        (spec/explain-data ::validation/hedge-edn conf)))))]}
   (-> fs
-    (generate-build-files conf :api generate-source)))
+    (generate-build-files conf :api)
+    (generate-build-files conf :timer)
+    (generate-build-files conf :queue)))

@@ -21,7 +21,7 @@ Hedge is a platform agnostic ClojureScript framework for deploying ring compatib
 
 ## License
 
-Copyright © 2016-2017 [Siili Solutions Plc.](http://www.siili.com)
+Copyright © 2016-2018 [Siili Solutions Plc.](http://www.siili.com)
 
 Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/legal/epl-v10.html)
 
@@ -32,7 +32,11 @@ Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/lega
 1. Preparing Hedge Authentication Against Azure
 1. Authentication for AWS
 1. Supported Handler Types
+1. Input/Output Bindings
+1. Logging
 1. Basic Serverless Function Project Structure
+1. hedge.edn
+1. Handler signatures
 1. Testing
 1. Deploying to Azure
 1. Deploying to AWS   
@@ -52,7 +56,7 @@ This document gets you started writing and deploying serverless functions to dif
 
 ### How Hedge Works
 
-ClojureScript is compiled and optimized into JavaScript than can be run on Node.js or similair runtime environment available in serverless environments. Hedge takes care of generating code that is compatible and runnable on the deployment target. Hedge can then use provided authentication profile and deploy the compiled code to the serverless environment.
+ClojureScript is compiled and optimized into JavaScript than can be run on Node.js or similar runtime environment available in serverless environments. Hedge takes care of generating code that is compatible and runnable on the deployment target. Hedge can then use provided authentication profile and deploy the compiled code to the serverless environment.
 
 ### Preparing Hedge Authentication Against Azure
 
@@ -101,28 +105,252 @@ To store environment variables for current shell session use command
 
 ### Supported Handler Types
 
-Currently supported handler types are :
-* HTTP Request In - HTTP Response Out Handler (Function triggered by incoming HTTP request)
+| **Handler type** | **Trigger**          | **Trigger Input**    | **Output**    | **Azure** | **AWS** |
+|------------------|----------------------|----------------------|---------------|-----------|---------|
+| :api             | HTTP Request         | HTTP Request         | HTTP Response | Yes       | Yes     |
+| :timer           | Cron schedule        | Timer                | result->JS    | Yes       | Yes     |
+| :queue           | New message in queue | Message              | result->JS    | Yes       | Yes     |
 
 Other handler types are planned.
 
+Notes on Azure handlers: In Azure you can configure the output to be passed as return value to other Azure services (i.e. queue, table storage etc).
+
+### Input/Output Bindings
+
+Hedge can abstract Inputs and Outputs similar to Azure. A function can have a variable amount of input and output bindings.
+Inputs are passed to the function on invocation and outputs are persisted on function successful complete (unless *nil*). Depending on configuration, you can use different implementations (if available) with same abstraction.
+
+| **type** | **Input**       | **Output**      | **Azure**        | **AWS** |
+|----------|-----------------|-----------------|------------------|---------|
+| :queue   |    n/a          |  Queue          | Storage Queue    |    TBA  |
+| :queue   |    n/a          |  Queue          | ServiceBus Queue |    TBA  |
+| :queue   |    n/a          |  Queue          | ServiceBus Topic |    TBA  |
+| :table   | Key-Value Store | Key-Value Store | Table Storage    |    TBA  |
+| :db      | Database        | Database        | CosmosDB         |    TBA  |
+
+### Logging
+
+Logging inside your serverless function is dependent on target platform. The Hedge handlers require internally [Timbre](https://github.com/ptaoussanis/timbre) as logging system.
+You can use Timbre in your **handler** with following require:
+
+Example on handler that uses Timbre logging (in a file `src/my-cool-function/core.cljs`)
+
+    (ns my-cool-function.core
+        (:require [taoensso.timbre :as timbre
+                                   :refer [log  trace  debug  info  warn  error  fatal  report
+                                           logf tracef debugf infof warnf errorf fatalf reportf
+                                           spy get-env log-env]]))
+
+    ; default logging level is :debug
+    (timbre/set-level! :trace)
+
+    (defn handler [req]
+        (info "hello info level")
+        (error "hello error level"))
+
 ### Basic Serverless Project Structure
 
-A basic structure can be found in one of the examples in [AWS example](https://github.com/jikuja/hedge-example-aws) or [Azure example](https://github.com/jikuja/hedge-example-azure) repositories.
+A basic structure can be found in one of the examples in [AWS example](https://github.com/jikuja/hedge-example-aws) repository.
 
 Note: Example directories might be merged to master repo at some point.
 
 * src/ - This directory contains your CLJS source files
 * target/ - Optionally persisted compiled output directory
-* resources/hedge.edn - Includes configuration information that maps your program function to the serverless function entry point. You can configure here if a function is protected with authentication code or available without authentication.
+* resources/hedge.edn - Includes configuration information that maps your program function to the serverless function entry point. You can configure here if a function is protected with authentication code or available without authentication. Also function type is defined here (api, timer, ...)
 * test/ - This directory contains your unit tests
 * boot.properties - Boot properties
 * build.boot - Your build configuration file
 * package.json - Optionally, if you use external Node modules
 * node_modules - Optionally, if you have installed Node modules
 
-Note: Current implementation of Hedge requires to select target cloud in `build.boot` file.
-Refer example repositories for more info. This feature will be changed later.
+Refer example repositories for more info.
+
+### build.boot
+
+**build.boot** is boot configuration file. Hedge commands are implemented as boot task.
+
+Example configuration with Hedge and boot-cljs-test:
+
+```
+(set-env! :source-paths #{"src"}
+          :resource-paths #{"resources"}
+          :dependencies '[[org.clojure/clojurescript "1.9.946"]
+                          [adzerk/boot-cljs "1.7.228-2" :scope "test"]
+                          [crisptrutski/boot-cljs-test "0.3.4" :scope "test"]
+                          [siili/boot-hedge "0.1.0" :scope "test"]
+                          [siili/hedge "0.1.0"]])
+
+; refer example repository for detailed
+(require '[boot-hedge.core :as hedge])
+(hedge/hedge-init!)
+
+(require '[crisptrutski.boot-cljs-test :refer [test-cljs report-errors!] :as cljs-test])
+
+(deftask testing [] (set-env! :source-paths #(conj % "test")) identity)
+(ns-unmap 'boot.user 'test)
+
+(deftask test []
+  (comp (testing)
+        (test-cljs :js-env :node
+                   :exit?  true)))
+```
+
+### hedge.edn
+
+**resources/hedge.edn** contains the configuration for the given functions.
+
+Example of a configuration for two apis, two timers and one queue triggered function:
+
+```
+{:api {"api1" {:handler my_cool_function.core/crunch-my-data :authorization :anonymous}
+       "api2" {:handler my_cool_function.core/hello :authorization :function}}
+
+ :timer {"timer1" {:handler my_cool_function.core/timer-handler :cron "*/10 * * * *"}
+         "timer2" {:handler my_cool_function.core/timer-handler-broken :cron "*/10 * * * *"}}
+
+ :queue {:"queue" {:handler my_cool_function.core/timer-handler
+                   :queue "nameOfQueue"
+                   :connection "environmental variable that holds the connection string (Azure)"}}}
+```
+
+Common structure:
+
+`{:handler-type {"name-given-to-api" {:handler namespace.core/name-of-function}}}`
+
+Azure **:api** specific:
+
+`:authorization :anonymous` or `:authorization :function` - defines if the HTTP endpoint public or access key protected
+
+**:timer** specific:
+`:cron "{minutes} {hours} {day-of-month} {months} {day-of-week}"`
+
+Example on cron expression that will trigger every minute: `"*/1 * * * *"`
+
+Note on used cron expression:
+- Only simple expressions are supported
+  - *, numbers and / wildcard
+  - setting both day-of-month and day-of-week is not supported (AWS limitation)
+  - names of days/months and L, W, ? and # wildcards are not supported
+- Azure has a field for seconds and AWS doesn't (field results to 0 when generating Azure function.json)
+- AWS has a field for years and Azure doesn't (field results to *)
+
+Azure users: You can modify the resulted function.json if you need to incorporate seconds in your cron expression
+
+Azure **:queue** specific:
+`:accessRights "Manage"` or `:accessRights "Listen"` - if defined, will use servicebus queue/topic queue instead of storage queue
+`:connection "ENV_VARIABLE"` - function app environmental variable that holds the connection string to the queue service (for example AzureWebJobsStorage for storage queues)
+`:subscription "subscriptionName"` - if defined together with `:accessRights`, will use a service bus topic & subscription. Subscription will be created if it does not exist.
+
+If your function throws an unhandled exception or fails, the message is returned to the queue, retried and finally put into poison queue (azure storage queue) or dead-letter queue (servicebus queue).
+
+Note: It might be that it is not possible to put a servicebus topic message to dead-letter queue (when your function fails), because design decisions in Azure function runtime.  
+
+Storage Queue polling frequency and servicebus queue settings for the function app runtime can be set in **host.json**, see https://docs.microsoft.com/en-us/azure/azure-functions/functions-host-json#queues
+
+Please note you must create the queues/topics yourself (you can do it through the portal or use Azure Storage Explorer with storage Queues).
+
+**Define Function Inputs and Outputs in hedge.edn:**
+
+Please note **:connection** is Azure specific Function App Setting (env variable) that contains the connection string. In Azure you can specify target Queue implementation, see below.  
+
+```
+{:api {"api1" {:handler my_cool_function.core/crunch-my-data :authorization :anonymous}
+               :inputs [{:type :table
+                         :key "in1"
+                         :name "inputTable"
+                         :connection "AzureWebJobStorage"}
+                       {:type :db
+                         :key "in2"
+                         :name "inputDb"
+                         :collection "collection"
+                         :connection "CosmosDBConnection"}]
+               :outputs [{:type :queue
+                          :key "out1"
+                          :name "queue"
+                          :connection "AzureWebJobsStorage"}
+                         {:type :queue
+                          :key "out2"
+                          :accessRights "Manage"
+                          :name "queue"
+                          :connection "SBQueueConnection"}
+                         {:type :queue
+                          :key "out3"
+                          :topic true
+                          :accessRights "Manage"
+                          :name "queue"
+                          :connection "SBTopicConnection"}
+                         {:type :db
+                          :key "out4"
+                          :name "db"
+                          :collection "collection"
+                          :connection "ConnectionString"}
+                         {:type :table
+                          :key "out5"
+                          :name "table"
+                          :connection "ConnectionString"}]
+
+```
+
+### Handler signatures
+
+Short examples on handler signatures:
+
+```
+(defn api-handler
+    "req contains the incoming http request, return value is passed as the response"
+    [req]
+    "Hello World!")
+
+(defn timer-handler
+    "timer contains the scheduled trigger timestamp, return can be passed to function output i.e. other wired service"
+    [timer]
+    "Hello World!")
+
+(defn queue-handler
+    "message contains the message payload, return can be passed to function output i.e. other wired service"
+    [message]
+    "Hello World!)
+```
+
+If you are using inputs and outputs, you can currently use any of the following signature additions on any type of handler:
+
+```
+(defn api-handler-with-inputs
+    "req contains the incoming http request, inputs contains a map of given inputs described in hedge.edn"
+    [req & {:keys [inputs]}]
+    (info
+        "Read table from table storage: "
+        (-> inputs :in1))
+    "This goes as return value to HTTP response")
+
+(defn api-handler-with-outputs
+    "req contains the incoming http request, outputs contain a map of atoms for given outputs defined in hedge.edn"
+    [req & {:keys [outputs]}]
+
+    ; write two messages to storage queue (mapped as :out1)
+    (reset! (-> outputs :out1 :value) [{:message {:id "1" :content "hello world"}} {:message {:id "2" :content "hello again"}}])
+    ; one message to servicebus queue (Azure only)
+    (reset! (-> outputs :out2 :value) {:message {:id "1" :content "hello world"}})
+    ; two messages to to servicebus topic (Azure only)
+    (reset! (-> outputs :out3 :value) [{:message {:id "1" :content "hello world"}} {:message {:id "2" :content "hello again"}}])
+    ; to db (example with two rows)
+    (reset! (-> outputs :out4 :value) [{:name "John Doe"
+                                        :address "123 Hollywood"}
+                                       {:name "Jane Doe"
+                                        :address "123 Hollywood"
+                                        :info "available}])
+
+    ; write row to table storage (mapped as :out5)
+    (reset! (-> outputs :out5 :value) {:PartitionKey "partitionkey-1" :RowKey "rowkey-1 :value "A value stored."})
+    "This goes as return value to HTTP response")
+
+(defn api-handler-with-inputs-and-outputs
+    [req & {:keys [inputs outputs]}]
+    ; as above
+    "This goes as return value to HTTP response")
+```
+
+See examples for more usage patterns.
 
 ### Testing
 
@@ -160,7 +388,7 @@ To create your function app with consumption plan (Windows Server backed serverl
 
 To compile and deploy your function to Azure:
 
-    boot deploy-azure -a NameOfFunctionApp -r NameOfResourceGroup
+    boot azure/deploy -a NameOfFunctionApp -r NameOfResourceGroup
 
 If your authentication file is correctly generated and found in the environment, your function should deploy to Azure and can be reached with HTTP.
 
@@ -168,7 +396,7 @@ If your authentication file is correctly generated and found in the environment,
 
 To compile and deploy your project to AWS:
 
-    boot deploy-aws -n <STACK_NAME>
+    boot aws/deploy -n <STACK_NAME>
 
 Command checks that `STACK_NAME` name is free. If it is free project
 is deployed into Cloudformation stack with given name. If name
@@ -183,16 +411,16 @@ in the future.
 ### Other Usage Examples
 
     # Get information about the Azure Publishing Profile
-    boot azure-publish-profile -a functionapp -r resourcegroup
+    boot azure/show-publish-profile -a functionapp -r resourcegroup
 
     # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
-    boot deploy-azure -a functionapp -r resourcegroup target
+    boot azure/deploy -a functionapp -r resourcegroup target
 
-    # Persist the compiled output to target/ without deploy
-    boot deploy-to-target
-
-    # Persist the compiled output to <directory>
-    boot deploy-to-directory -O <optimization level> -f <function name> -d <directory>
+    # Persist the compiled output. Given no options, defaults to Optimizations=simple and directory=target
+    boot azure/deploy-to-directory -O <optimization level> -f <function name> -d <directory>
 
     # Deploy compiled artifacts from target directory (index.js and function.json)
-    boot deploy-azure-from-directory -a functionapp -r resourcegroup -d <directory>
+    boot azure/deploy-from-directory -a functionapp -r resourcegroup -d <directory>
+
+    # Get more help of task, i.e. commandline options
+    boot <task-name> -h

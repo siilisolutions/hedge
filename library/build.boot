@@ -2,19 +2,20 @@
   :source-paths #{"src"}
   :dependencies '[[adzerk/boot-cljs "1.7.228-2" :scope "test"]
                   [speclj "3.3.2" :scope "test"]
-                  [org.clojure/clojurescript "1.9.908"]
+                  [org.clojure/clojurescript "1.9.946"]
                   [crisptrutski/boot-cljs-test "0.3.4" :scope "test"]
                   [camel-snake-kebab "0.4.0"]
                   [org.clojure/core.async "0.3.443"]
                   [adzerk/bootlaces "0.1.13" :scope "test"]
-                  ])
+                  [com.taoensso/timbre "4.10.0"]
+                  [binaryage/oops "0.5.8"]])
 
 (require
   '[adzerk.boot-cljs :refer [cljs]]
   '[crisptrutski.boot-cljs-test :refer [test-cljs]]
   '[adzerk.bootlaces :refer :all])
 
-(def +version+ "0.0.4")
+(def +version+ "0.1.0")
 
 (bootlaces! +version+)
 

@@ -6,7 +6,13 @@
             [cljs.core.async :refer [<!]]
             [cljs.core.async.impl.protocols :refer [ReadPort]]
             [clojure.string :as str]
-            [clojure.walk :as w]))
+            [clojure.walk :as w]
+            [taoensso.timbre :as timbre
+                       :refer (log  trace  debug  info  warn  error  fatal  report
+                               logf tracef debugf infof warnf errorf fatalf reportf
+                               spy get-env log-env)]
+            [oops.core :refer [oget oset! ocall oapply ocall! oapply!
+                               oget+ oset!+ ocall+ oapply+ ocall!+ oapply!+]]))
 
 (defprotocol Codec
   (serialize [this data])
@@ -43,7 +49,6 @@
         query-map (goog.object/get req "queryStringParameters")
         headers (get r "headers")
         context (get r "requestContext")]
-    (println "raw req" r)
     {:server-port     (-> (get headers "X-Forwarded-Port") js/parseInt)
      :server-name     (get headers "Host")
      :remote-addr     (dig headers "X-Forwarded-For" #(-> % (str/split #"," 2) first))
@@ -64,7 +69,7 @@
 
 (defn ring->lambda [callback codec]
   (fn [raw-resp]
-    (println (str "result: " raw-resp))
+    (trace (str "result: " raw-resp))
     (let [response
           (if (string? raw-resp)
             {:statusCode 200 :body raw-resp}
@@ -75,7 +80,6 @@
                :headers headers
                :body body
                :isBase64Encoded base64}))]
-      (println (str "final result: " response))
       (callback nil (clj->js response)))))
 
 (defn lambda-apigw-function-wrapper
@@ -84,10 +88,64 @@
   ([handler codec]
    (fn [event context callback]
      (try
+       (trace (str "request: " (js->clj event)))
        (let [ok     (ring->lambda callback codec)
              result (handler (lambda->ring event))]
-          (cond
-            (satisfies? ReadPort result) (do (println "Result is channel, content pending...")
-                                           (go (ok (<! result))))
-            :else                        (ok result)))
+         (cond
+           (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
+                                            (go (ok (<! result))))
+            :else                       (ok result)))
+       (catch :default e (callback e nil))))))
+
+(defn ->hedge-timer
+  "converts AWS specific timer payload to Hedge handler unified format"
+  [event]
+  {:trigger-time (oget event "time")})
+
+(defn ->aws-timer
+  [callback]
+  (fn [response]
+    (when (not (nil? response)) (warn "Response " response " not being handled"))
+    (callback)))
+
+(defn lambda-timer-function-wrapper
+  "wrapper for AWS timer events"
+  ([handler]
+   (fn [event context callback]
+     (try
+       (trace (str "request: " (js->clj event)))
+       (let [ok     (->aws-timer callback)
+             result (handler (->hedge-timer event))]
+         (cond
+           (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
+                                            (go (ok (<! result))))
+            :else                       (ok result)))
+       (catch :default e (callback e nil))))))
+
+(defn ->hedge-queue
+  [event]
+  {:payload
+   (-> event
+    (oget "Records")
+    (goog.object/get 0)
+    (oget "Sns.Message"))}) ; TODO: parse transit
+
+(defn ->aws-queue
+  [callback]
+  (fn [response]
+    (when (not (nil? response)) (warn "Response " response " not being handled"))
+    (callback)))
+
+(defn lambda-queue-function-wrapper
+  "wrapper for AWS queue events"
+  ([handler]
+   (fn [event context callback]
+     (try
+       (trace (str "request: " (js->clj event)))
+       (let [ok     (->aws-queue callback)
+             result (handler (->hedge-queue event))]
+         (cond
+           (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
+                                            (go (ok (<! result))))
+            :else                       (ok result)))
        (catch :default e (callback e nil))))))
