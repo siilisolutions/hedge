@@ -33,6 +33,7 @@ Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/lega
 1. Authentication for AWS
 1. Supported Handler Types
 1. Input/Output Bindings
+1. Logging
 1. Basic Serverless Function Project Structure
 1. hedge.edn
 1. Handler signatures
@@ -126,6 +127,26 @@ Inputs are passed to the function on invocation and outputs are persisted on fun
 | :queue   |    n/a          |  Queue          | ServiceBus Topic |         |
 | :table   | Key-Value Store | Key-Value Store | Table Storage    |         |
 | :db      | Database        | Database        | CosmosDB         |         |
+
+### Logging 
+
+Logging inside your serverless function is dependent on target platform. The Hedge handlers require internally [Timbre](https://github.com/ptaoussanis/timbre) as logging system.
+You can use Timbre in your **handler** with following require:
+
+Example on handler that uses Timbre logging (in a file `src/my-cool-function/core.cljs`)
+
+    (ns my-cool-function.core
+        (:require [taoensso.timbre :as timbre
+                                   :refer [log  trace  debug  info  warn  error  fatal  report
+                                           logf tracef debugf infof warnf errorf fatalf reportf
+                                           spy get-env log-env]]))
+
+    ; default logging level is :debug
+    (timbre/set-level! :trace)
+
+    (defn handler [req]
+        (info "hello info level")
+        (error "hello error level"))
 
 ### Basic Serverless Project Structure
 
@@ -338,7 +359,7 @@ To create your function app with consumption plan (Windows Server backed serverl
 
 To compile and deploy your function to Azure:
 
-    boot azure/deploy-azure -a NameOfFunctionApp -r NameOfResourceGroup
+    boot azure/deploy -a NameOfFunctionApp -r NameOfResourceGroup
 
 If your authentication file is correctly generated and found in the environment, your function should deploy to Azure and can be reached with HTTP.
 
@@ -346,7 +367,7 @@ If your authentication file is correctly generated and found in the environment,
 
 To compile and deploy your project to AWS:
 
-    boot deploy-aws -n <STACK_NAME>
+    boot aws/deploy -n <STACK_NAME>
 
 Command checks that `STACK_NAME` name is free. If it is free project
 is deployed into Cloudformation stack with given name. If name
@@ -361,16 +382,16 @@ in the future.
 ### Other Usage Examples
 
     # Get information about the Azure Publishing Profile
-    boot azure/azure-publish-profile -a functionapp -r resourcegroup
+    boot azure/show-publish-profile -a functionapp -r resourcegroup
 
     # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
-    boot azure/deploy-azure -a functionapp -r resourcegroup target
+    boot azure/deploy -a functionapp -r resourcegroup target
 
     # Persist the compiled output. Given no options, defaults to Optimizations=simple and directory=target
     boot azure/deploy-to-directory -O <optimization level> -f <function name> -d <directory>
 
     # Deploy compiled artifacts from target directory (index.js and function.json)
-    boot azure/deploy-azure-from-directory -a functionapp -r resourcegroup -d <directory>
+    boot azure/deploy-from-directory -a functionapp -r resourcegroup -d <directory>
 
     # Get more help of task, i.e. commandline options
     boot <task-name> -h
