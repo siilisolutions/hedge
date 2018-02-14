@@ -77,13 +77,9 @@ Example: Create Service Principal with the name "MyNameServicePrincipal"
 
     az ad sp create-for-rbac --name "MyNameServicePrincipal" --sdk-auth > MyNameServicePrincipal.json
 
-Example: Create Deployment Credentials with
-
-    az webapp deployment user set --user-name "<your-username>" --password "<your-password>"
-
 Hint: Use a meaningful name that you can identify, so you can find it later if you need to remove it. Keep the generated file in a secure place, because it contains contributor role credentials by default that are able to affect things in your whole subscription.
 
-Optionally configure your environment to provide the credentials for deploying individual functions
+Optionally configure your environment to provide the credentials via an environment variable
 
     export AZURE_AUTH_LOCATION=/path-to-your/MyNameServicePrincipal.json
 
@@ -340,9 +336,14 @@ To create your function app with consumption plan (Windows Server backed serverl
 
     az functionapp create --name NameOfFunctionApp --storage-account NameOfStorageAccount --resource-group NameOfResourceGroup --consumption-plan-location northeurope
 
-To compile and deploy your function to Azure:
-
-    boot azure/deploy-azure -a NameOfFunctionApp -r NameOfResourceGroup -U azure-scm-username -P azure-scm-password
+To compile and deploy your function to Azure you can provide the credentials either via:
+* Environment variables by setting:
+    export AZURE_AUTH_LOCATION=</path-to-your/MyNameServicePrincipal.json>
+    boot azure/deploy-azure -a <NameOfFunctionApp> -r <NameOfResourceGroup>
+* Providing the service principal file to the boot task using the -p/--principal-file parameter:
+    boot azure/deploy-azure -a <NameOfFunctionApp> -r <NameOfResourceGroup> -p </path-to-your/MyNameServicePrincipal.json>
+* Providing the client id, tenant id and secret to the boot task using the -i/--client-id, -t/--tenant-id and -s/--secret parameters:
+    boot azure/deploy-azure -a <NameOfFunctionApp> -r <NameOfResourceGroup>-i <client-id> -t <tenant-id> -s <secret>
 
 Your function should deploy to Azure and can be reached with HTTP.
 
@@ -370,7 +371,7 @@ in the future.
     boot azure/azure-publish-profile -a <functionapp> -r <resourcegroup> -i <service-principal-client-id> -t <service-principal-tenant-id> -s <service-principal-client-secret>
 
     # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
-    boot azure/deploy-azure -a <functionapp> -r <resourcegroup> -U <azure-scm-username> -P <azure-scm-password> target
+    boot azure/deploy-azure -a <functionapp> -r <resourcegroup> target -p  </path-to-your/MyNameServicePrincipal.json>
 
     # Persist the compiled output of a single function. Given no options, defaults to Optimizations=simple and directory=target
     boot azure/deploy-to-directory -O <optimization level> -f <function name> -d <directory> -p <path/to/service-principal.json>
