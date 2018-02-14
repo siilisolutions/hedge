@@ -254,14 +254,20 @@
            :username (.gitUsername pbo)
            :password (.gitPassword pbo)}}))
 
-(c/deftask azure-publish-profile
-  "Shows details of publishing profile"
+(c/deftask show-publish-profile
+  "Shows details of publishing profile
+
+  Azure authentication resolving priority:
+  1. Command line parameters for id, domain and secret
+  2. Command line parameter pointing to security principal
+  3. Environment variable pointing to security principal (no optional parameters given)"
+
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
-   p principal-file PRINCIPAL str "Azure principal file"
-   i client-id CLIENT str "Azure client id"
-   t tenant-id TENANT str "Azure tenant id"
-   s secret SECRET str "Azure client secret"]
+   p principal-file PRINCIPAL str "Azure principal file (optional)"
+   i client-id CLIENT str "Azure client id (optional)"
+   t tenant-id TENANT str "Azure tenant id (optional)"
+   s secret SECRET str "Azure client secret (optional)"]
   (check-app-rg-names app-name rg-name)
   (let [credential-candidates (map-credentials client-id tenant-id secret
                                                principal-file)
@@ -270,7 +276,7 @@
 
 
 (c/deftask create-function-app
-  "Creates given function app"
+  "Creates given function app resource"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"]
   (check-app-rg-names app-name rg-name)
@@ -311,10 +317,12 @@
 ; * if optimizations :none inject :main option (is it even possible)
 ; * read :compiler-options from command line and merge with current config
 (c/deftask deploy-to-directory
-  "Build function app(s) and store output to target"
-  [O optimizations LEVEL kw "The optimization level"
+  "** Build function app(s) and store output to target **
+  
+  If directory is not given, will default to ./target"
+  [O optimizations LEVEL kw "The optimization level (optional)"
    f function FUNCTION str "Function to compile"
-   d directory DIR str "Directory to deploy into"]
+   d directory DIR str "Directory to deploy into (optional)"]
   (when function (c/set-env! :function-to-build function))
   (let [dir (or directory "target")]
     (comp
@@ -329,15 +337,21 @@
   (c/with-pre-wrap fs
     (c/commit! (c/add-resource fs (file (or directory "target"))))))
 
-(c/deftask deploy-azure-from-directory
-  "Deploy files from target directory to Azure."
+(c/deftask deploy-from-directory
+  "** Deploy files from directory. **
+  
+  Azure authentication resolving priority:
+  1. Command line parameters for id, domain and secret
+  2. Command line parameter pointing to security principal
+  3. Environment variable pointing to security principal (no optional parameters given)"
+
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
    d directory DIR str "Directory to deploy from"
-   p principal-file PRINCIPAL str "Azure principal file"
-   i client-id CLIENT str "Azure client id"
-   t tenant-id TENANT str "Azure tenant id"
-   s secret SECRET str "Azure client secret"]
+   p principal-file PRINCIPAL str "Azure principal file (optional)"
+   i client-id CLIENT str "Azure client id (optional)"
+   t tenant-id TENANT str "Azure tenant id (optional)"
+   s secret SECRET str "Azure client secret (optional)"]
   (check-app-rg-names app-name rg-name)
   (let [credential-candidates (map-credentials client-id tenant-id secret
                                                principal-file)
@@ -349,21 +363,26 @@
                       :credentials credentials :full-deploy false))))
 
 ; FIXME: check env. variables for deployment
-(c/deftask deploy-azure
-  "Build and deploy function app(s).
-  For deploying individual function either client-id, tenant-id and secret or a
-  principal file has to be provided. The principal file can be provided using
-  the -p/--principal-file parameter or via AZURE_AUTH_LOCATION environment
-  variable.
-  Deploying everything is done using zipdeploy and requires deployment credentials"
+(c/deftask deploy
+  "** Build and deploy function app(s) **
+
+  Either client-id, tenant-id and secret or a principal file has to be provided.
+  The principal file can be provided using the -p/--principal-file parameter or
+  via AZURE_AUTH_LOCATION environment variable.
+
+  Azure authentication resolving priority:
+  1. Command line parameters for id, domain and secret
+  2. Command line parameter pointing to security principal
+  3. Environment variable pointing to security principal (no optional parameters given)"
+
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
-   f function FUNCTION str "Function to deploy"
-   O optimizations LEVEL kw "The optimization level."
-   p principal-file PRINCIPAL str "Azure principal file"
-   i client-id CLIENT str "Azure client id"
-   t tenant-id TENANT str "Azure tenant id"
-   s secret SECRET str "Azure client secret"]
+   f function FUNCTION str "Function to deploy (optional)"
+   O optimizations LEVEL kw "The optimization level. (optional)"
+   p principal-file PRINCIPAL str "Azure principal file (optional)"
+   i client-id CLIENT str "Azure client id (optional)"
+   t tenant-id TENANT str "Azure tenant id (optional)"
+   s secret SECRET str "Azure client secret (optional)"]
   (check-app-rg-names app-name rg-name)
   (when function (c/set-env! :function-to-build function))
   (let [credential-candidates (map-credentials client-id tenant-id secret
@@ -374,16 +393,4 @@
      (sift :include #{#"\.out" #"\.edn" #"\.cljs" #"\.zip"} :invert true)
      (zip :file "handlers.zip")
      (deploy-to-azure :app-name app-name :rg-name rg-name
-                      :credentials credentials :full-deploy (not function)))))
-
-(c/deftask hedge-azure
-  "(Deprecated: use deploy-azure) Build and deploy function app(s)"
-  [a app-name APP str "the app name"
-   r rg-name RGN str "the resource group name"
-   f function FUNCTION str "Function to deploy"
-   O optimizations LEVEL kw "The optimization level."]
-  (check-app-rg-names app-name rg-name)
-  (deploy-azure :app-name app-name
-                :rg-name rg-name
-                :function function
-                :optimizations optimizations))
+                      :credentials credentials))))

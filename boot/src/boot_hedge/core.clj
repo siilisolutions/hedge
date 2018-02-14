@@ -3,19 +3,27 @@
 
 (def SUPPORTED_CLOUDS [:aws :azure])
 
-(c/deftask hedge-help
-  "WARNING: run this task to get more info" []
-  (println "Check example projects to find out how to import Hedge tasks")
+; This task is only visible if this namespace
+; is required without running init! for proper
+; task import
+(c/deftask HEDGE-README
+  "WARNING: use core/init! to import Hedge tasks" 
+  []
+  (println "WARNING: use core/init! to import Hedge tasks")
   identity)
 
-(c/deftask help
-  "Displays some help"
+; The help task for Hedge
+(c/deftask hedge-help
+  "Hedge Help"
   []
-  (println "Tasks marked with ** are main tasks for end-users"))
+  (println "\n\nTasks marked with ** are main tasks for end-users. You can find out more of a function by example:")
+  (println "$> boot azure/deploy --help")
+  (println ".. Would display help of function"))
 
-(defn init! [& {:keys [clouds]
-                :or {clouds SUPPORTED_CLOUDS}}]
-  (ns-unmap 'boot-hedge.core 'hedge-help)
+(defn hedge-init! [& {:keys [clouds]
+                      :or {clouds SUPPORTED_CLOUDS}}]
+  (ns-unmap 'boot-hedge.core 'HEDGE-README)
+  ; TODO: how to unmap HEDGE-README if user requires this file with :refer :all
   (doseq [cloud clouds]
     (case cloud
       :aws (require '[boot-hedge.aws.core :as aws])

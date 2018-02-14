@@ -33,6 +33,7 @@ Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/lega
 1. Authentication for AWS
 1. Supported Handler Types
 1. Input/Output Bindings
+1. Logging
 1. Basic Serverless Function Project Structure
 1. hedge.edn
 1. Handler signatures
@@ -55,7 +56,7 @@ This document gets you started writing and deploying serverless functions to dif
 
 ### How Hedge Works
 
-ClojureScript is compiled and optimized into JavaScript than can be run on Node.js or similair runtime environment available in serverless environments. Hedge takes care of generating code that is compatible and runnable on the deployment target. Hedge can then use provided authentication profile and deploy the compiled code to the serverless environment.
+ClojureScript is compiled and optimized into JavaScript than can be run on Node.js or similar runtime environment available in serverless environments. Hedge takes care of generating code that is compatible and runnable on the deployment target. Hedge can then use provided authentication profile and deploy the compiled code to the serverless environment.
 
 ### Preparing Hedge Authentication Against Azure
 
@@ -107,8 +108,8 @@ To store environment variables for current shell session use command
 | **Handler type** | **Trigger**          | **Trigger Input**    | **Output**    | **Azure** | **AWS** |
 |------------------|----------------------|----------------------|---------------|-----------|---------|
 | :api             | HTTP Request         | HTTP Request         | HTTP Response | Yes       | Yes     |
-| :timer           | Cron schedule        | Timer                | result->JS    | Yes       | WIP     |
-| :queue           | New message in queue | Message              | result->JS    | Yes       |         |
+| :timer           | Cron schedule        | Timer                | result->JS    | Yes       | Yes     |
+| :queue           | New message in queue | Message              | result->JS    | Yes       | Yes     |
 
 Other handler types are planned.
 
@@ -116,20 +117,40 @@ Notes on Azure handlers: In Azure you can configure the output to be passed as r
 
 ### Input/Output Bindings
 
-Hedge can abstract Inputs and Outputs similair to Azure. A function can have a variable amount of input and output bindings.
-Inputs are passed to the function on invocation and outputs are persisted on function succesfull complete (unless *nil*). Depending on configuration, you can use different implementations (if available) with same abstraction.
+Hedge can abstract Inputs and Outputs similar to Azure. A function can have a variable amount of input and output bindings.
+Inputs are passed to the function on invocation and outputs are persisted on function successful complete (unless *nil*). Depending on configuration, you can use different implementations (if available) with same abstraction.
 
 | **type** | **Input**       | **Output**      | **Azure**        | **AWS** |
 |----------|-----------------|-----------------|------------------|---------|
-| :queue   |    n/a          |  Queue          | Storage Queue    |         |
-| :queue   |    n/a          |  Queue          | ServiceBus Queue |         |
-| :queue   |    n/a          |  Queue          | ServiceBus Topic |         |
-| :table   | Key-Value Store | Key-Value Store | Table Storage    |         |
-| :db      | Database        | Database        | CosmosDB         |         |
+| :queue   |    n/a          |  Queue          | Storage Queue    |    TBA  |
+| :queue   |    n/a          |  Queue          | ServiceBus Queue |    TBA  |
+| :queue   |    n/a          |  Queue          | ServiceBus Topic |    TBA  |
+| :table   | Key-Value Store | Key-Value Store | Table Storage    |    TBA  |
+| :db      | Database        | Database        | CosmosDB         |    TBA  |
+
+### Logging
+
+Logging inside your serverless function is dependent on target platform. The Hedge handlers require internally [Timbre](https://github.com/ptaoussanis/timbre) as logging system.
+You can use Timbre in your **handler** with following require:
+
+Example on handler that uses Timbre logging (in a file `src/my-cool-function/core.cljs`)
+
+    (ns my-cool-function.core
+        (:require [taoensso.timbre :as timbre
+                                   :refer [log  trace  debug  info  warn  error  fatal  report
+                                           logf tracef debugf infof warnf errorf fatalf reportf
+                                           spy get-env log-env]]))
+
+    ; default logging level is :debug
+    (timbre/set-level! :trace)
+
+    (defn handler [req]
+        (info "hello info level")
+        (error "hello error level"))
 
 ### Basic Serverless Project Structure
 
-A basic structure can be found in one of the examples in [AWS example](https://github.com/jikuja/hedge-example-aws) or [Azure example](https://github.com/jikuja/hedge-example-azure) repositories.
+A basic structure can be found in one of the examples in [AWS example](https://github.com/jikuja/hedge-example-aws) repository.
 
 Note: Example directories might be merged to master repo at some point.
 
@@ -142,8 +163,37 @@ Note: Example directories might be merged to master repo at some point.
 * package.json - Optionally, if you use external Node modules
 * node_modules - Optionally, if you have installed Node modules
 
-Note: Current implementation of Hedge requires to select target cloud in `build.boot` file.
-Refer example repositories for more info. This feature will be changed later.
+Refer example repositories for more info.
+
+### build.boot
+
+**build.boot** is boot configuration file. Hedge commands are implemented as boot task.
+
+Example configuration with Hedge and boot-cljs-test:
+
+```
+(set-env! :source-paths #{"src"}
+          :resource-paths #{"resources"}
+          :dependencies '[[org.clojure/clojurescript "1.9.946"]
+                          [adzerk/boot-cljs "1.7.228-2" :scope "test"]
+                          [crisptrutski/boot-cljs-test "0.3.4" :scope "test"]
+                          [siili/boot-hedge "0.1.0" :scope "test"]
+                          [siili/hedge "0.1.0"]])
+
+; refer example repository for detailed
+(require '[boot-hedge.core :as hedge])
+(hedge/hedge-init!)
+
+(require '[crisptrutski.boot-cljs-test :refer [test-cljs report-errors!] :as cljs-test])
+
+(deftask testing [] (set-env! :source-paths #(conj % "test")) identity)
+(ns-unmap 'boot.user 'test)
+
+(deftask test []
+  (comp (testing)
+        (test-cljs :js-env :node
+                   :exit?  true)))
+```
 
 ### hedge.edn
 
@@ -268,8 +318,8 @@ If you are using inputs and outputs, you can currently use any of the following 
 (defn api-handler-with-inputs
     "req contains the incoming http request, inputs contains a map of given inputs described in hedge.edn"
     [req & {:keys [inputs]}]
-    (info 
-        "Read table from table storage: " 
+    (info
+        "Read table from table storage: "
         (-> inputs :in1))
     "This goes as return value to HTTP response")
 
@@ -284,9 +334,9 @@ If you are using inputs and outputs, you can currently use any of the following 
     ; two messages to to servicebus topic (Azure only)
     (reset! (-> outputs :out3 :value) [{:message {:id "1" :content "hello world"}} {:message {:id "2" :content "hello again"}}])
     ; to db (example with two rows)
-    (reset! (-> outputs :out4 :value) [{:name "John Doe" 
+    (reset! (-> outputs :out4 :value) [{:name "John Doe"
                                         :address "123 Hollywood"}
-                                       {:name "Jane Doe" 
+                                       {:name "Jane Doe"
                                         :address "123 Hollywood"
                                         :info "available}])
 
@@ -343,15 +393,15 @@ To compile and deploy your function to Azure you can provide the credentials eit
 * Providing the service principal file to the boot task using the -p/--principal-file parameter:
     boot azure/deploy-azure -a <NameOfFunctionApp> -r <NameOfResourceGroup> -p </path-to-your/MyNameServicePrincipal.json>
 * Providing the client id, tenant id and secret to the boot task using the -i/--client-id, -t/--tenant-id and -s/--secret parameters:
-    boot azure/deploy-azure -a <NameOfFunctionApp> -r <NameOfResourceGroup>-i <client-id> -t <tenant-id> -s <secret>
+    boot azure/deploy-azure -a <NameOfFunctionApp> -r <NameOfResourceGroup> -i <client-id> -t <tenant-id> -s <secret>
 
-Your function should deploy to Azure and can be reached with HTTP.
+If the given credentials are correct your function should deploy to Azure and be reachable over HTTP.
 
 ### Deploying To AWS
 
 To compile and deploy your project to AWS:
 
-    boot deploy-aws -n <STACK_NAME>
+    boot aws/deploy -n <STACK_NAME>
 
 Command checks that `STACK_NAME` name is free. If it is free project
 is deployed into Cloudformation stack with given name. If name
@@ -366,12 +416,10 @@ in the future.
 ### Other Usage Examples
 
     # Get information about the Azure Publishing Profile.
-    AZURE_AUTH_LOCATION=path/to/service-principal.json boot azure/azure-publish-profile -a <functionapp> -r <resourcegroup>
     boot azure/azure-publish-profile -a <functionapp> -r <resourcegroup> -p <path/to/service-principal.json>
-    boot azure/azure-publish-profile -a <functionapp> -r <resourcegroup> -i <service-principal-client-id> -t <service-principal-tenant-id> -s <service-principal-client-secret>
 
     # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
-    boot azure/deploy-azure -a <functionapp> -r <resourcegroup> target -p  </path-to-your/MyNameServicePrincipal.json>
+    boot azure/deploy-azure -a <functionapp> -r <resourcegroup> -p </path-to-your/MyNameServicePrincipal.json> target
 
     # Persist the compiled output of a single function. Given no options, defaults to Optimizations=simple and directory=target
     boot azure/deploy-to-directory -O <optimization level> -f <function name> -d <directory> -p <path/to/service-principal.json>
