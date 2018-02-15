@@ -1,15 +1,15 @@
 (set-env!
   :source-paths #{"src"}
-  :dependencies '[[adzerk/boot-cljs "1.7.228-2" :scope "test"]
-                  [speclj "3.3.2" :scope "test"]
-                  [org.clojure/clojurescript "1.9.946"]
+  :dependencies '[[org.clojure/clojurescript "1.9.946"]
+                  [adzerk/boot-cljs "1.7.228-2" :scope "test"]
                   [crisptrutski/boot-cljs-test "0.3.4" :scope "test"]
-                  [camel-snake-kebab "0.4.0"]
-                  [org.clojure/core.async "0.3.443"]
+                  [speclj "3.3.2" :scope "test"]
+                  [org.clojars.akiel/async-error "0.2" :scope "test"]
                   [adzerk/bootlaces "0.1.13" :scope "test"]
+                  [camel-snake-kebab "0.4.0"]
+                  [org.clojure/core.async "0.4.474"]
                   [com.taoensso/timbre "4.10.0"]
-                  [binaryage/oops "0.5.8"]
-                  [org.clojars.akiel/async-error "0.2"]])
+                  [binaryage/oops "0.5.8"]])
 
 (require
   '[adzerk.boot-cljs :refer [cljs]]
