@@ -8,7 +8,8 @@
                   [org.clojure/core.async "0.3.443"]
                   [adzerk/bootlaces "0.1.13" :scope "test"]
                   [com.taoensso/timbre "4.10.0"]
-                  [binaryage/oops "0.5.8"]])
+                  [binaryage/oops "0.5.8"]
+                  [org.clojars.akiel/async-error "0.2"]])
 
 (require
   '[adzerk.boot-cljs :refer [cljs]]
