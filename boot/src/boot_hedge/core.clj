@@ -1,5 +1,7 @@
 (ns boot-hedge.core
-  (:require [boot.core          :as c]))
+  (:require [boot.core          :as c]
+            [clojure.java.io]
+            [clojure.string]))
 
 (def SUPPORTED_CLOUDS [:aws :azure])
 
@@ -28,3 +30,20 @@
     (case cloud
       :aws (require '[boot-hedge.aws.core :as aws])
       :azure (require '[boot-hedge.azure.core :as azure]))))
+
+(defn find-version [version line]
+  (if (clojure.string/starts-with? line "version=")
+    (last (clojure.string/split line #"="))
+    version))
+
+(defn get-hedge-boot-version
+  "Return the version of boot-hedge."
+  []
+  (let [props (clojure.java.io/resource "META-INF/maven/siili/boot-hedge/pom.properties")
+        all-props (slurp props)]
+        (reduce find-version (clojure.string/split-lines all-props))))
+
+(defn print-hedge-boot-version
+  "Print the version of boot-hedge to stdout"
+  []
+  (println "boot-hedge version:" (get-hedge-boot-version)))
