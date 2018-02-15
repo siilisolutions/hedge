@@ -70,17 +70,19 @@
 (defn ring->lambda [callback codec]
   (fn [raw-resp]
     (trace (str "result: " raw-resp))
-    (let [response
-          (if (string? raw-resp)
-            {:statusCode 200 :body raw-resp}
-            (let [[base64 body] (ringbody->awsbody (get raw-resp :body))
-                  headers (get raw-resp :headers {})
-                  status (get raw-resp :status 200)]
-              {:statusCode status
-               :headers headers
-               :body body
-               :isBase64Encoded base64}))]
-      (callback nil (clj->js response)))))
+    (if (instance? js/Error raw-resp)
+      (callback raw-resp nil)
+      (let [response
+            (if (string? raw-resp)
+              {:statusCode 200 :body raw-resp}
+              (let [[base64 body] (ringbody->awsbody (get raw-resp :body))
+                    headers (get raw-resp :headers {})
+                    status (get raw-resp :status 200)]
+                {:statusCode status
+                 :headers headers
+                 :body body
+                 :isBase64Encoded base64}))]
+        (callback nil (clj->js response))))))
 
 (defn lambda-apigw-function-wrapper
   ([handler]
@@ -106,7 +108,9 @@
   [callback]
   (fn [response]
     (when (not (nil? response)) (warn "Response " response " not being handled"))
-    (callback)))
+    (if (instance? js/Error response)
+      (callback response nil)
+      (callback))))
 
 (defn lambda-timer-function-wrapper
   "wrapper for AWS timer events"
@@ -134,7 +138,9 @@
   [callback]
   (fn [response]
     (when (not (nil? response)) (warn "Response " response " not being handled"))
-    (callback)))
+    (if (instance? js/Error response)
+      (callback response nil)
+      (callback))))
 
 (defn lambda-queue-function-wrapper
   "wrapper for AWS queue events"
