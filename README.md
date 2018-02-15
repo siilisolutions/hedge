@@ -80,7 +80,7 @@ Example: Create Service Principal with the name "MyNameServicePrincipal"
 
 Hint: Use a meaningful name that you can identify, so you can find it later if you need to remove it. Keep the generated file in a secure place, because it contains contributor role credentials by default that are able to affect things in your whole subscription.
 
-Configure your environment
+Optionally configure your environment to provide the credentials via an environment variable
 
     export AZURE_AUTH_LOCATION=/path-to-your/MyNameServicePrincipal.json
 
@@ -386,11 +386,16 @@ To create your function app with consumption plan (Windows Server backed serverl
 
     az functionapp create --name NameOfFunctionApp --storage-account NameOfStorageAccount --resource-group NameOfResourceGroup --consumption-plan-location northeurope
 
-To compile and deploy your function to Azure:
+To compile and deploy your function to Azure you can provide the credentials either via:
+* Environment variables by setting:
+    export AZURE_AUTH_LOCATION=</path-to-your/MyNameServicePrincipal.json>
+    boot azure/deploy-azure -a <NameOfFunctionApp> -r <NameOfResourceGroup>
+* Providing the service principal file to the boot task using the -p/--principal-file parameter:
+    boot azure/deploy-azure -a <NameOfFunctionApp> -r <NameOfResourceGroup> -p </path-to-your/MyNameServicePrincipal.json>
+* Providing the client id, tenant id and secret to the boot task using the -i/--client-id, -t/--tenant-id and -s/--secret parameters:
+    boot azure/deploy-azure -a <NameOfFunctionApp> -r <NameOfResourceGroup> -i <client-id> -t <tenant-id> -s <secret>
 
-    boot azure/deploy -a NameOfFunctionApp -r NameOfResourceGroup
-
-If your authentication file is correctly generated and found in the environment, your function should deploy to Azure and can be reached with HTTP.
+If the given credentials are correct your function should deploy to Azure and be reachable over HTTP.
 
 ### Deploying To AWS
 
@@ -410,17 +415,17 @@ in the future.
 
 ### Other Usage Examples
 
-    # Get information about the Azure Publishing Profile
-    boot azure/show-publish-profile -a functionapp -r resourcegroup
+    # Get information about the Azure Publishing Profile.
+    boot azure/azure-publish-profile -a <functionapp> -r <resourcegroup> -p <path/to/service-principal.json>
 
     # Deploy to Azure and Persist the compiled artifacts in **target/** directory (index.js and function.json)
-    boot azure/deploy -a functionapp -r resourcegroup target
+    boot azure/deploy-azure -a <functionapp> -r <resourcegroup> -p </path-to-your/MyNameServicePrincipal.json> target
 
-    # Persist the compiled output. Given no options, defaults to Optimizations=simple and directory=target
-    boot azure/deploy-to-directory -O <optimization level> -f <function name> -d <directory>
+    # Persist the compiled output of a single function. Given no options, defaults to Optimizations=simple and directory=target
+    boot azure/deploy-to-directory -O <optimization level> -f <function name> -d <directory> -p <path/to/service-principal.json>
 
     # Deploy compiled artifacts from target directory (index.js and function.json)
-    boot azure/deploy-from-directory -a functionapp -r resourcegroup -d <directory>
+    boot azure/deploy-azure-from-directory -a <functionapp> -r <resourcegroup> -d <directory>
 
     # Get more help of task, i.e. commandline options
     boot <task-name> -h

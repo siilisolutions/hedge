@@ -3,19 +3,22 @@
   (:require
    [boot.core          :as c]
    [boot.util          :as util]
-   [boot.task.built-in :refer [sift target]]
+   [boot.task.built-in :refer [sift target zip]]
    [adzerk.boot-cljs :refer [cljs]]
-   [clojure.string :refer [split]]
+   [clojure.string :refer [split, ends-with?]]
    [clojure.java.io :refer [file input-stream]]
    [boot-hedge.azure.function-app :refer [read-conf generate-files]]
    [boot-hedge.common.core :refer [print-and-return fail-if-false]]
-   [clojure.spec.alpha :as spec])
+   [clojure.spec.alpha :as spec]
+   [org.httpkit.client :as http])
   (:import [com.microsoft.azure.management Azure]
            [com.microsoft.rest LogLevel]
            [com.microsoft.azure.management.resources.fluentcore.arm Region]
            [com.microsoft.azure.management.resources.fluentcore.utils SdkContext]
            [com.microsoft.azure.credentials ApplicationTokenCredentials]
+           [java.io IOException]
            [org.apache.commons.net.ftp FTPClient FTP]))
+
 
 
 ;;; Define the required parameters
@@ -49,12 +52,22 @@
       (assoc credentials :azure-principal-file-env creds-env-file)
       credentials)))
 
+(defn add-env-scm-credentials
+  "Add SCM credentials from ENV to the credential map if they are not defined
+  on command line."
+  [credentials]
+  (let [scm-username (System/getenv "AZURE_SCM_USERNAME")
+        scm-password (System/getenv "AZURE_SCM_PASSWORD")]
+    (merge {:azure-scm-credentials-map {:scm-username scm-username
+                                        :scm-password scm-password}}
+           credentials))) ; let command line parameters override env
+
 (defn resolve-azure-credentials
   "Attempt to resolve the Azure credentials to use or fail.
-  The credentials are attempted to retrieve from:
+  The credentials for deploy are attempted to retrieve from:
   1. Command line parameters for id, domain and secret
   2. Command line parameter pointing to security principal
-  3. Environment variable pointing to security principal"
+  3. Environment variable pointing to security principal."
   [initial-credentials]
   (let [credentials-with-env (add-env-credential-file initial-credentials)
         result (spec/conform ::azure-credentials credentials-with-env)]
@@ -69,16 +82,16 @@
   "Map the command line credentials to the format spec expects.
   If any credential related information is given expect the others too."
   [client-id client-domain client-secret principal-file]
+  {:azure-scm-credentials {:scm-username scm-username :scm-password scm-password}}
   (let [id-domain-secret (if (or client-id client-domain client-secret)
                            {:azure-id-domain-secret {:client-id client-id
                                                      :client-domain client-domain
                                                      :client-secret client-secret}}
-                           {})
-        credentials (if principal-file
-                      (merge id-domain-secret
-                             {:azure-principal-file-parameter principal-file})
-                      id-domain-secret)]
-    credentials))
+                           {})]
+    (if principal-file
+      (merge id-domain-secret
+             {:azure-principal-file-parameter principal-file})
+      id-domain-secret)))
 
 (c/deftask ^:private function-app
   "Generates fileset for cljs and deployment files from hedge.edn"
@@ -121,45 +134,57 @@
   (fail-if-false app-name "Application name (-a/--app-name) is required but not set")
   (fail-if-false rg-name "Resource group name (-r/--rg-name) is required but not set"))
 
-(c/deftask create-function-app
-  "Creates given function app resource"
-  [a app-name APP str "the app name"
-   r rg-name RGN str "the resource group name"]
-  (check-app-rg-names app-name rg-name)
-  (-> (azure)
-      .appServices
-      .functionApps
-      (.define app-name)
-      (.withRegion Region/EUROPE_NORTH)
-      (.withNewResourceGroup rg-name)
-      .create))
+(defn zipdeploy-url
+  [app-name]
+  (let [async ""] ;"?isAsync=true"]
+    (str "https://" app-name ".scm.azurewebsites.net/api/zipdeploy" async)))
 
+(defn zipdeploy
+  "Deploy a zip file with all the functions to Azure."
+  [app-name credentials zip-file-path]
+  (let [zip-file (clojure.java.io/file zip-file-path)
+        options {:basic-auth [(:username (:git credentials))
+                              (:password (:git credentials))]
+                 :body (input-stream (file zip-file-path))}
+        url (zipdeploy-url app-name)
+        {:keys [status body headers error]} @(http/post url options)]
+    (if-not (= status 200)
+      (do
+        (util/fail "Failed to deploy %s to %s:\n%s\n%s\n%s\n"
+                   zip-file-path url status error body)
+        (util/exit-error))
+      (util/info "Deployed %s to %s successfully\n" zip-file-path url))))
+
+(defn find-handlers-zip
+  [fs]
+  (reduce (fn [found-file element]
+            (if (ends-with? (:path element) ".zip")
+              (str (:dir element) "/" (:path element))
+              found-file)) [] (vals (:tree (c/output-fileset fs)))))
 
 (defn split-path [path]
   (if (.contains path "/")
     (let [lastslash (.lastIndexOf path "/")]
       [(.substring path 0 lastslash)
        (.substring path (inc lastslash))])
-    [path ""]))
-
-(defn ftp-info [client]
-  (util/info (.getReplyString client)))
+    ["" path]))
 
 (defn change-and-report [client dir]
-  (let [result (.changeWorkingDirectory client dir)]
-    (ftp-info client)
-    result))
+  (.changeWorkingDirectory client dir))
 
 (defn files-in-dir
   "Map files by their upload folder to minimize changing the folder during the
   FTP connection."
-  [path-map new-file]
-  (let [local-directory (:dir new-file)
-        [remote-directory filename] (split-path (:path new-file))
+  [path-map new-file-full]
+  (let [local-directory (:dir new-file-full)
+        [remote-directory filename] (split-path (:path new-file-full))
         old-files (get path-map remote-directory)
         new-file {:filename filename
                   :local-directory local-directory}]
-    (assoc path-map remote-directory (conj old-files new-file))))
+    (println "########" new-file-full)
+    (if-not (ends-with? (:filename new-file) ".zip")
+      (assoc path-map remote-directory (conj old-files new-file))
+      path-map)))
 
 (defn ftp-goto-directory
   "Change to the given directory creating it if it does not exist."
@@ -169,12 +194,15 @@
     (when-not (change-and-report ftp-client directory)
       (doseq [segment path-segments]
         (doto ftp-client
-          (.makeDirectory segment)
-          (ftp-info)
-          (.changeWorkingDirectory segment)
-          (ftp-info))))))
+          (fail-if-false (.makeDirectory segment)
+                         "Failed to create directory %s of %s on the FTP server"
+                         segment path-segments)
+          (fail-if-false (.changeWorkingDirectory segment)
+                         "Failed to change to directory %s on the FTP server"
+                         segment))))))
 
 (defn upload-files [ftp-client initial-dir files]
+  (println "### Local files:" files)
   (doseq [[remote-path local-files] (reduce files-in-dir {} files)]
     (.changeWorkingDirectory ftp-client initial-dir)
     (ftp-goto-directory ftp-client remote-path)
@@ -183,8 +211,8 @@
                                        (str remote-path "/" filename)))]]
       (util/info "uploading %s...\n" filename)
       (with-open [file-stream (input-stream f)]
-        (.storeFile ftp-client filename file-stream)
-        (util/info (.getReplyString ftp-client))))))
+        (fail-if-false (.storeFile ftp-client filename file-stream)
+                       "Failed to upload file %s to the FTP server" filename)))))
 
 (defn ftp-upload
   "Open the FTP connection and upload the output files."
@@ -196,15 +224,15 @@
         output-files (vals (:tree (c/output-fileset fileset)))]
     (util/info (str "connecting to server: " server "\n"))
     ;; Initialize the FTP-connection
-    (doto ftp-client
-      (.connect server)
-      (ftp-info)
-      (.login username password)
-      (ftp-info)
-      (.setFileType FTP/ASCII_FILE_TYPE)
-      (ftp-info)
-      (.enterLocalPassiveMode)
-      (ftp-info))
+    (try (.connect ftp-client server)
+         (catch IOException e
+           (util/fail "Failed to connect to FTP server at %s:\n%s"
+                      server (.getMessage e))))
+    (fail-if-false (.login ftp-client username password)
+                   "Failed to log in to FTP server as %s" username)
+    (fail-if-false (.setFileType ftp-client FTP/ASCII_FILE_TYPE)
+                   "Failed setting FTP filetype to ASCII")
+    (.enterLocalPassiveMode ftp-client)
     ;; Change to the initial directory
     (ftp-goto-directory ftp-client initial-directory)
     ;; Upload the files and disconnect
@@ -221,11 +249,14 @@
 
     {:ftp {:url (.ftpUrl pbo)
            :username (.ftpUsername pbo)
-           :password (.ftpPassword pbo)}}))
+           :password (.ftpPassword pbo)}
+     :git {:url (.gitUrl pbo)
+           :username (.gitUsername pbo)
+           :password (.gitPassword pbo)}}))
 
 (c/deftask show-publish-profile
   "Shows details of publishing profile
-  
+
   Azure authentication resolving priority:
   1. Command line parameters for id, domain and secret
   2. Command line parameter pointing to security principal
@@ -243,16 +274,35 @@
         credentials (resolve-azure-credentials credential-candidates)]
     (util/info (prn-str (publishing-profile rg-name app-name credentials)))))
 
+
+(c/deftask create-function-app
+  "Creates given function app resource"
+  [a app-name APP str "the app name"
+   r rg-name RGN str "the resource group name"]
+  (check-app-rg-names app-name rg-name)
+  (-> (azure)
+      .appServices
+      .functionApps
+      (.define app-name)
+      (.withRegion Region/EUROPE_NORTH)
+      (.withNewResourceGroup rg-name)
+      .create))
+
 (c/deftask ^:private deploy-to-azure
   "Deploy fileset to Azure"
   [a app-name APP str "the app name"
    r rg-name RGN str "the resource group name"
+   f full-deploy bool "Do a full deploy"
    c credentials CREDENTIALS code "Pre-resolved credentials map"]
   (c/with-pass-thru [fs]
-    (let [pprofile (publishing-profile rg-name app-name credentials)
-          ftp-profile (:ftp pprofile)]
-      (ftp-upload ftp-profile fs))))
-
+    (if full-deploy
+      (do
+        (util/info "Deploying everything via zipdeploy\n")
+        (zipdeploy app-name (publishing-profile rg-name app-name credentials) (find-handlers-zip fs)))
+      (let [pprofile (publishing-profile rg-name app-name credentials)
+            ftp-profile (:ftp pprofile)]
+        (util/info "Deploying individual function via FTP\n")
+        (ftp-upload ftp-profile fs)))))
 
 (c/deftask ^:private compile-function-app
   "Build function app(s)"
@@ -263,7 +313,7 @@
    (function-app)
    (cljs :optimizations optimizations)))
 
-; FIXME: 
+; FIXME:
 ; * if optimizations :none inject :main option (is it even possible)
 ; * read :compiler-options from command line and merge with current config
 (c/deftask deploy-to-directory
@@ -274,10 +324,12 @@
    f function FUNCTION str "Function to compile"
    d directory DIR str "Directory to deploy into (optional)"]
   (when function (c/set-env! :function-to-build function))
-  (comp
-    (compile-function-app :optimizations (or optimizations :simple))
-    (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
-    (target :dir #{(or directory "target")})))
+  (let [dir (or directory "target")]
+    (comp
+     (compile-function-app :optimizations (or optimizations :simple))
+     (sift :include #{#"\.out" #"\.edn" #"\.cljs" #"\.zip"} :invert true)
+     (zip :file "handlers.zip")
+     (target :dir #{dir}))))
 
 (c/deftask ^:private read-files
   "Read files from target directory into task fileset"
@@ -308,7 +360,7 @@
      (read-files :directory directory)
      (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
      (deploy-to-azure :app-name app-name :rg-name rg-name
-                      :credentials credentials))))
+                      :credentials credentials :full-deploy false))))
 
 ; FIXME: check env. variables for deployment
 (c/deftask deploy
@@ -317,7 +369,7 @@
   Either client-id, tenant-id and secret or a principal file has to be provided.
   The principal file can be provided using the -p/--principal-file parameter or
   via AZURE_AUTH_LOCATION environment variable.
-  
+
   Azure authentication resolving priority:
   1. Command line parameters for id, domain and secret
   2. Command line parameter pointing to security principal
@@ -338,6 +390,7 @@
         credentials (resolve-azure-credentials credential-candidates)]
     (comp
      (compile-function-app :optimizations (or optimizations :advanced))
-     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
+     (sift :include #{#"\.out" #"\.edn" #"\.cljs" #"\.zip"} :invert true)
+     (zip :file "handlers.zip")
      (deploy-to-azure :app-name app-name :rg-name rg-name
                       :credentials credentials))))

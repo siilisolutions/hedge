@@ -14,7 +14,9 @@
                           [adzerk/boot-test "1.2.0" :scope "test"]
                           [proto-repl "0.3.1"]
                           [org.clojure/core.match "0.3.0-alpha5"]
-                          [metosin/scjsv "0.4.0" :scope "test"]])
+                          [metosin/scjsv "0.4.0" :scope "test"]
+                          [http-kit "2.2.0"]])
+
 
 (require '[adzerk.bootlaces :refer :all])
 (require '[adzerk.boot-test :refer :all])
