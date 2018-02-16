@@ -95,9 +95,14 @@
 (fn [raw-resp]
   (trace (str "result: " raw-resp))
   (outputs->bindings context outputs) ; persist outputs
-  (if (string? raw-resp)
-    (.done context nil (clj->js {:body raw-resp}))
-    (.done context nil (clj->js raw-resp)))))
+  (cond 
+    (string? raw-resp) 
+      (.done context nil (clj->js {:body raw-resp}))
+    (instance? js/Error raw-resp) 
+      (do (error "Uncaught Exception:" raw-resp)
+          (.done context raw-resp nil))
+    :else 
+      (.done context nil (clj->js raw-resp)))))
 
 (defn azure->timer
   "Converts incoming timer trigger to Hedge timer handler"
@@ -111,7 +116,12 @@
   (fn [raw-resp]
     (trace (str "result: " raw-resp))
     (outputs->bindings context outputs) ; persist outputs
-    (.done context nil (clj->js raw-resp))))
+    (cond 
+      (instance? js/Error raw-resp) 
+        (do (error "Uncaught Exception:" raw-resp)
+          (.done context raw-resp nil))
+      :else 
+        (.done context nil (clj->js raw-resp)))))
 
 (defn azure->queue
   "Converts incoming queue message to Hedge queue message handler"
@@ -125,7 +135,12 @@
   (fn [raw-resp]
     (trace (str "result: " raw-resp))
     (outputs->bindings context outputs) ; persist outputs
-    (.done context nil (clj->js raw-resp))))
+    (cond 
+      (instance? js/Error raw-resp) 
+        (do (error "Uncaught Exception:" raw-resp)
+          (.done context raw-resp nil))
+      :else 
+        (.done context nil (clj->js raw-resp)))))
 
 (defn azure-api-function-wrapper
   "wrapper used for http in / http out api function"
@@ -135,8 +150,8 @@
         (timbre/merge-config! {:appenders {:console nil}})
         (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
         (trace (str "request: " (js->clj req)))
-        (def opatoms (outputs->atoms outputs))
-        (let [ok      (ring->azure context :outputs opatoms)
+        (let [opatoms (outputs->atoms outputs)
+              ok      (ring->azure context :outputs opatoms)
               logfn   (.-log context)
               result  (handler (into (azure->ring req) {:log logfn}) 
                                :inputs (bindings->inputs context inputs) 
@@ -159,8 +174,8 @@
         (timbre/merge-config! {:appenders {:console nil}})
         (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
         (trace (str "timer: " (js->clj timer)))
-        (def opatoms (outputs->atoms outputs))
-        (let [ok     (timer->azure context :outputs opatoms)
+        (let [opatoms (outputs->atoms outputs)
+              ok     (timer->azure context :outputs opatoms)
               logfn  (.-log context)
               result (handler (into (azure->timer timer) {:log logfn})
                               :inputs (bindings->inputs context inputs) 
@@ -182,8 +197,8 @@
         (timbre/merge-config! {:appenders {:console nil}})
         (timbre/merge-config! {:appenders {:azure (timbre-appender (.-log context))}})
         (trace (str "message: " (js->clj message)))
-        (def opatoms (outputs->atoms outputs))
-        (let [ok     (queue->azure context :outputs opatoms)
+        (let [opatoms (outputs->atoms outputs)
+              ok     (queue->azure context :outputs opatoms)
               logfn  (.-log context)
               result (handler (into (azure->queue message) {:log logfn})
                                     :inputs (bindings->inputs context inputs) 

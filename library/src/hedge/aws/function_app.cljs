@@ -70,17 +70,20 @@
 (defn ring->lambda [callback codec]
   (fn [raw-resp]
     (trace (str "result: " raw-resp))
-    (let [response
-          (if (string? raw-resp)
-            {:statusCode 200 :body raw-resp}
-            (let [[base64 body] (ringbody->awsbody (get raw-resp :body))
-                  headers (get raw-resp :headers {})
-                  status (get raw-resp :status 200)]
-              {:statusCode status
-               :headers headers
-               :body body
-               :isBase64Encoded base64}))]
-      (callback nil (clj->js response)))))
+    (if (instance? js/Error raw-resp)
+      (do (error "Uncaught Exception:" raw-resp)
+        (callback raw-resp nil))
+      (let [response
+            (if (string? raw-resp)
+              {:statusCode 200 :body raw-resp}
+              (let [[base64 body] (ringbody->awsbody (get raw-resp :body))
+                    headers (get raw-resp :headers {})
+                    status (get raw-resp :status 200)]
+                {:statusCode status
+                 :headers headers
+                 :body body
+                 :isBase64Encoded base64}))]
+        (callback nil (clj->js response))))))
 
 (defn lambda-apigw-function-wrapper
   ([handler]
@@ -95,7 +98,9 @@
            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                             (go (ok (<! result))))
             :else                       (ok result)))
-       (catch :default e (callback e nil))))))
+       (catch :default e
+         (do (error e)
+           (callback e nil)))))))
 
 (defn ->hedge-timer
   "converts AWS specific timer payload to Hedge handler unified format"
@@ -106,7 +111,10 @@
   [callback]
   (fn [response]
     (when (not (nil? response)) (warn "Response " response " not being handled"))
-    (callback)))
+    (if (instance? js/Error response)
+      (do (error "Uncaught Exception:" response)
+        (callback response nil))
+      (callback))))
 
 (defn lambda-timer-function-wrapper
   "wrapper for AWS timer events"
@@ -120,7 +128,9 @@
            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                             (go (ok (<! result))))
             :else                       (ok result)))
-       (catch :default e (callback e nil))))))
+       (catch :default e
+         (do (error e)
+           (callback e nil)))))))
 
 (defn ->hedge-queue
   [event]
@@ -134,7 +144,10 @@
   [callback]
   (fn [response]
     (when (not (nil? response)) (warn "Response " response " not being handled"))
-    (callback)))
+    (if (instance? js/Error response)
+      (do (error "Uncaught Exception:" response)
+        (callback response nil))
+      (callback))))
 
 (defn lambda-queue-function-wrapper
   "wrapper for AWS queue events"
@@ -148,4 +161,6 @@
            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                             (go (ok (<! result))))
             :else                       (ok result)))
-       (catch :default e (callback e nil))))))
+       (catch :default e
+         (do (error e)
+           (callback e nil)))))))
