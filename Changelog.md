@@ -1,5 +1,15 @@
 # Version history
 
+## 0.1.2
+
+* Fixed critical bug in Azure input/output bindings
+* Added proper exception handling
+* Added documentation for exception handling best practices
+
+## Hedge 0.1.1
+
+* Fixed broken build
+
 ## Hedge 0.1.0
 
 * Unified logging with [Timbre](https://github.com/ptaoussanis/timbre)

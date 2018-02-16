@@ -9,7 +9,8 @@
                                               outputs->bindings] 
                                       :refer-macros [azure-api-function]]
             [hedge.azure.common :refer [azure-context-logger-mock]]
-            [hedge.common :refer [outputs->atoms]])
+            [hedge.common :refer [outputs->atoms]]
+            [async-error.core :refer-macros [go-try <?]])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (def fixture-once
@@ -26,6 +27,16 @@
   #js {:done (fn [err result] (done-fn (js->clj result)))
        :log  azure-context-logger-mock
        :bindings #js {:in1 "input1value"
+                      :out1 nil}})
+
+(defn azure-ctx-with-error [done-fn]
+  "Generate monkeypatched Azure context.
+  
+    Automatically converts between JS and CLJS
+    where applicable to allow writing assertions in more idiomatic manner"
+  #js {:done (fn [err result] (do (done-fn (js->clj err))))
+        :log  azure-context-logger-mock
+        :bindings #js {:in1 "input1value"
                       :out1 nil}})
 
 (def azure-req (clj->js {"headers" {"x-forwarded-for" "127.0.0.1:1234"
@@ -132,3 +143,15 @@
     (testing "should have a cli function that returns nil"
       (azure-api-function  (constantly :result))
       (is (= (*main-cli-fn*) nil)))))
+
+
+(deftest azure-api-function-exception-inside-go
+  (testing "if exception can be passed to serverless runtime if thrown inside go-try block"
+    (async done
+      (go
+        (let [azure-fn (azure-api-function-wrapper #(go-try (throw (js/Error. "error inside execution"))))]
+        
+          (azure-fn 
+            (azure-ctx-with-error 
+              #(do (is (instance? js/Error %)) (done)))
+            azure-req))))))

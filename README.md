@@ -37,6 +37,7 @@ Distributed under the [Eclipse Public License 1.0.](https://www.eclipse.org/lega
 1. Basic Serverless Function Project Structure
 1. hedge.edn
 1. Handler signatures
+1. Exception Handling inside Serverless Function
 1. Testing
 1. Deploying to Azure
 1. Deploying to AWS   
@@ -351,6 +352,21 @@ If you are using inputs and outputs, you can currently use any of the following 
 ```
 
 See examples for more usage patterns.
+
+### Exception Handling inside Serverless Function
+
+These instructions especially apply for **Azure**, and is considered as best practice for **AWS** also in the context of Hedge.
+
+If your function throws an uncaught exception, it will be passed as Error to the serverless runtime. This will be visible in Application Insights logs as user reported execution failure.
+This is useful when for example receiving messages from a queue but your function would like to abort processing on failure and return the message to queue.
+
+If you are using `go` blocks (i.e. performing async HTTP requests), throwing an uncaught exception (either accidentally or signaling the runtime on purpose) inside a `go` block will not be caught by the runtime and unexpected behavior can be expected. The solution is to use `go-try`:
+
+Add dependency to your functions **build.boot** `[org.clojars.akiel/async-error "0.2"]` see https://github.com/alexanderkiel/async-error
+
+Require the necessary macros in your handler `[async-error.core :refer-macros [go-try <?]]`.
+
+Instead of using `go` and `<!`, use `go-try` and `<?`. Thus exceptions from port reading will be passed in the channels upstream and finally to the serverless runtime.
 
 ### Testing
 
