@@ -71,7 +71,8 @@
   (fn [raw-resp]
     (trace (str "result: " raw-resp))
     (if (instance? js/Error raw-resp)
-      (callback raw-resp nil)
+      (do (error "Uncaught Exception:" raw-resp)
+        (callback raw-resp nil))
       (let [response
             (if (string? raw-resp)
               {:statusCode 200 :body raw-resp}
@@ -97,7 +98,9 @@
            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                             (go (ok (<! result))))
             :else                       (ok result)))
-       (catch :default e (callback e nil))))))
+       (catch :default e
+         (do (error e)
+           (callback e nil)))))))
 
 (defn ->hedge-timer
   "converts AWS specific timer payload to Hedge handler unified format"
@@ -109,7 +112,8 @@
   (fn [response]
     (when (not (nil? response)) (warn "Response " response " not being handled"))
     (if (instance? js/Error response)
-      (callback response nil)
+      (do (error "Uncaught Exception:" response)
+        (callback response nil))
       (callback))))
 
 (defn lambda-timer-function-wrapper
@@ -124,7 +128,9 @@
            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                             (go (ok (<! result))))
             :else                       (ok result)))
-       (catch :default e (callback e nil))))))
+       (catch :default e
+         (do (error e)
+           (callback e nil)))))))
 
 (defn ->hedge-queue
   [event]
@@ -139,7 +145,8 @@
   (fn [response]
     (when (not (nil? response)) (warn "Response " response " not being handled"))
     (if (instance? js/Error response)
-      (callback response nil)
+      (do (error "Uncaught Exception:" response)
+        (callback response nil))
       (callback))))
 
 (defn lambda-queue-function-wrapper
@@ -154,4 +161,6 @@
            (satisfies? ReadPort result) (do (info "Result is channel, content pending...")
                                             (go (ok (<! result))))
             :else                       (ok result)))
-       (catch :default e (callback e nil))))))
+       (catch :default e
+         (do (error e)
+           (callback e nil)))))))

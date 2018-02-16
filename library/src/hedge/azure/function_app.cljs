@@ -99,8 +99,8 @@
     (string? raw-resp) 
       (.done context nil (clj->js {:body raw-resp}))
     (instance? js/Error raw-resp) 
-      (do (error "Uncaught Exception:" (clj->js raw-resp))
-          (.done context (clj->js raw-resp) nil))
+      (do (error "Uncaught Exception:" raw-resp)
+          (.done context raw-resp nil))
     :else 
       (.done context nil (clj->js raw-resp)))))
 
@@ -118,8 +118,8 @@
     (outputs->bindings context outputs) ; persist outputs
     (cond 
       (instance? js/Error raw-resp) 
-        (do (error "Uncaught Exception:" (clj->js raw-resp))
-          (.done context (clj->js raw-resp) nil))
+        (do (error "Uncaught Exception:" raw-resp)
+          (.done context raw-resp nil))
       :else 
         (.done context nil (clj->js raw-resp)))))
 
@@ -137,8 +137,8 @@
     (outputs->bindings context outputs) ; persist outputs
     (cond 
       (instance? js/Error raw-resp) 
-        (do (error "Uncaught Exception:" (clj->js raw-resp))
-          (.done context (clj->js raw-resp) nil))
+        (do (error "Uncaught Exception:" raw-resp)
+          (.done context raw-resp nil))
       :else 
         (.done context nil (clj->js raw-resp)))))
 
