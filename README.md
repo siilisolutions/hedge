@@ -77,7 +77,7 @@ Optionally change the subscription
 
 Example: Create Service Principal with the name "MyNameServicePrincipal"
 
-    az ad sp create-for-rbac --name "MyNameServicePrincipal" --sdk-auth > MyNameServicePrincipal.json
+    az ad sp create-for-rbac --name "MyNameServicePrincipal" --sdk-auth true > MyNameServicePrincipal.json
 
 Hint: Use a meaningful name that you can identify, so you can find it later if you need to remove it. Keep the generated file in a secure place, because it contains contributor role credentials by default that are able to affect things in your whole subscription.
 
