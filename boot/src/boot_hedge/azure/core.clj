@@ -275,7 +275,7 @@
    d directory DIR str "Directory to deploy into (optional)"]
   (when function (c/set-env! :function-to-build function))
   (comp
-    (compile-function-app :optimizations (or optimizations :simple))
+    (compile-function-app :optimizations (or optimizations :advanced))
     (sift :include #{#"\.out" #"\.edn" #"\.cljs"} :invert true)
     (target :dir #{(or directory "target")})))
 
